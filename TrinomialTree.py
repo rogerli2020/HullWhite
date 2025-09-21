@@ -1,24 +1,25 @@
 from HullWhite import OneFactorHullWhiteModel
-from typing import Any
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 
 
 class Node:
-    def __init__(self, value : float, prob : float, j : int) -> None:
+    def __init__(self, value : float, prob : float, j : int, t : float, child_delta_t : float=0) -> None:
         self.value : float = value
         self.prob : float = prob
         self.j : int = j
         self.children : list = []
         self.children_prob : list[float] = []
 
+        # these attributes are for the purpose of graphing
+        self.t : float = t
+        self.child_delta_t :float = child_delta_t
 
 class OneFactorHullWhiteTrinomialTree:
-    def __init__(self, model : OneFactorHullWhiteModel, payment_times : list[float], k : int = 3) -> None:
+    def __init__(self, model : OneFactorHullWhiteModel, payment_times : list[float]) -> None:
         self.model : OneFactorHullWhiteModel = model
         self.payment_times : list[float] = payment_times
-        self.k : int = k
         self.root_node : Node = None
 
         # basic validations
@@ -28,45 +29,61 @@ class OneFactorHullWhiteTrinomialTree:
     def build_tree(self):
         # start by initiating the first node on the valuation date.
         parent_layer_date = self.payment_times[0]
-        root_node = Node(0.025, 1, 0) # TODO: hardcoded initial value
+        root_node = Node(0, 1, 0, 0)                 # variance is 0 since f(r)|t=0 is deterministic.
         self.root_node = root_node
         current_parent_layer : list[Node] = [root_node]
         current_child_layer : list[Node] = []
-
+ 
         # iterate through all t
         for child_layer_date in self.payment_times[1:]:
             
             # compute delta t for the child layer
             delta_t : float = (child_layer_date - parent_layer_date)
-            assert delta_t >= 0, "Delta t must be non-negative."
+            assert delta_t >= 0, "Delta t must be positive."
 
             # compute delta x for the child layer
-            delta_x : float = self.model.sigma * np.sqrt(3 * delta_t)       # Eqn (2)
+            delta_x : float = self.model.sigma * np.sqrt(3 * delta_t)       # Equation (2)
 
             # compute variance for the child layer
             V : float = self.model.sigma**2 * delta_t                       # Footnote (3)
-            assert V >= 0, "Variance must be non-negative."
+            assert V >= 0, "Variance must be positive."
+
+            # prevent duplicate calculations
+            component_1 : float = V / delta_x / delta_x                     # for Equation (4)
 
             # iterate through parent layer
             for parent in current_parent_layer:
-                # deterministic increment
-                M = - parent.j * delta_x * self.model.a * delta_t           # Footnote (3)
+                # just for graphing/visualization
+                parent.child_delta_t = delta_t
+
+                # deterministic drift
+                M = - parent.value * self.model.a * delta_t    # Footnote (3)
 
                 # expected child value
-                x_expected = parent.value + M                               # Current node value + deterministic increment
+                x_expected = parent.value + M
 
-                # middle child index
-                m_i = int(x_expected // delta_x) 
+                # middle child index (from 3. Choosing the branching process)
+                m_i = round(x_expected // delta_x)
 
+                # Equation (4)
+                alpha : float       = lambda k     : (x_expected - k * delta_x) / delta_x
+                p_up : float        = lambda alpha : 0.5 * (component_1 + alpha * alpha + alpha)
+                p_down : float      = lambda alpha : 0.5 * (component_1 + alpha * alpha - alpha)
+                p_mid : float       = lambda alpha : 1 - component_1 - alpha * alpha
+        
                 # potential child nodes and values
                 children_j = [m_i - 1, m_i, m_i + 1]
                 children_values = [j_c * delta_x for j_c in children_j]
 
                 # transition probabilities
-                p_up   = 0.5 * ((V + M**2) / (delta_x**2) + M / delta_x)
-                p_mid  = 1 - (V + M**2) / (delta_x**2)
-                p_down = 0.5 * ((V + M**2) / (delta_x**2) - M / delta_x)
-                probs = [p_down, p_mid, p_up]
+                probs = [
+                    p_down(alpha(m_i-1)),
+                    p_mid(alpha(m_i)),
+                    p_up(alpha(m_i+1)),
+                ]
+
+                # sanity check!
+                assert abs( sum(probs) - 1 ) < 0.0001, "Sum of transition probabilities is not 1."
 
                 # recombine
                 for val_c, j_c, prob_c in zip(children_values, children_j, probs):
@@ -79,7 +96,7 @@ class OneFactorHullWhiteTrinomialTree:
                         parent.children.append(existing_node)
                         parent.children_prob.append(prob_c)
                     else:
-                        node = Node(value=val_c, j=j_c, prob=parent.prob * prob_c)
+                        node = Node(value=val_c, j=j_c, prob=parent.prob * prob_c, t=child_layer_date)
                         current_child_layer.append(node)
                         parent.children.append(node)
                         parent.children_prob.append(prob_c)
@@ -89,11 +106,15 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer = current_child_layer
             current_child_layer = []
 
+        # now, the tree has been built, but it only represents x(t, r), not f(r)!
+        # Step 4. Adjusting the Tree
+
+
         print("Tree built successfully.")
 
     def visualize_tree(self):
         """
-        Cheap visualization of the Hull-White trinomial tree (no labels, batched drawing).
+        ChatGPT: Cheap visualization of the Hull-White trinomial tree (no labels, batched drawing).
         """
         if self.root_node is None:
             print("Tree is empty. Build the tree first.")
@@ -113,11 +134,11 @@ class OneFactorHullWhiteTrinomialTree:
         xs, ys, lines = [], [], []
         for i, layer in enumerate(layers):
             for node in layer:
-                x, y = i, node.value
+                x, y = node.t, node.value
                 xs.append(x)
                 ys.append(y)
                 for child in node.children:
-                    lines.append([(x, y), (i+1, child.value)])
+                    lines.append([(x, y), (node.t + node.child_delta_t, child.value)])
 
         # Plot
         fig, ax = plt.subplots(figsize=(10, 5))
