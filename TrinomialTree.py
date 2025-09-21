@@ -4,8 +4,10 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from dataclasses import dataclass
 
+
 @dataclass
 class LayerAttributesStruct:
+    layer_id : int = 0
     t : float = 0
     child_delta_t : float = 0
 
@@ -62,7 +64,7 @@ class OneFactorHullWhiteTrinomialTree:
         """
         # start by initiating the first node on the valuation date. Initial variance is 0 since f(r)|t=0 is deterministic.
         parent_layer_date = self.payment_times[0]
-        root_layer_attr = LayerAttributesStruct(0, self.payment_times[1])
+        root_layer_attr = LayerAttributesStruct(0, 0, self.payment_times[1])
         root_node = Node(0, 1, 0, root_layer_attr)
         self.root_node = root_node
         current_parent_layer : list[Node] = [root_node]
@@ -76,7 +78,11 @@ class OneFactorHullWhiteTrinomialTree:
             assert delta_t >= 0, "Delta t must be positive."
 
             # this is purely for graphing
-            child_layer_attr = LayerAttributesStruct(t=child_layer_date, child_delta_t=0)
+            child_layer_attr = LayerAttributesStruct(
+                layer_id=(current_parent_layer[0].layer_attr.layer_id+1),
+                t=child_layer_date,
+                child_delta_t=0
+            )
 
             # compute delta x for the child layer
             delta_x : float = self.model.sigma * np.sqrt(3 * delta_t)       # Equation (2)
@@ -85,7 +91,7 @@ class OneFactorHullWhiteTrinomialTree:
             V : float = self.model.sigma**2 * delta_t                       # Footnote (3)
             assert V >= 0, "Variance must be positive."
 
-            # prevent duplicate calculations
+            # prevent redundant calculations
             component_1 : float = V / delta_x / delta_x                     # for Equation (4)
 
             # iterate through parent layer
@@ -118,6 +124,11 @@ class OneFactorHullWhiteTrinomialTree:
                     p_mid(alpha(m_i)),
                     p_up(alpha(m_i+1)),
                 ]
+
+                # print distribution
+                print(
+                    f"Node ({parent.layer_attr.layer_id}, {parent.j}) Probability Distribution: {probs}"
+                )
 
                 # sanity check!
                 assert abs( sum(probs) - 1 ) < 0.0001, "Sum of transition probabilities is not 1."
@@ -195,6 +206,6 @@ class OneFactorHullWhiteTrinomialTree:
 
         ax.set_xlabel("Time Step / Layer")
         ax.set_ylabel("x value")
-        ax.set_title("Hull-White Trinomial Tree (cheap visualization)")
+        ax.set_title("Hull-White Trinomial Tree")
         ax.grid(True, alpha=0.2)
         plt.show()
