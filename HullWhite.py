@@ -1,5 +1,3 @@
-class ForwardCurve:
-    pass
 
 class ThetaProcess:
     pass
