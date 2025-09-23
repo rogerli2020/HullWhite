@@ -26,6 +26,7 @@ class Node:
         self.children : list = []
         self.children_prob : list[float] = []
         self.layer_attr = layer_attr
+        self.Q : float = -1
 
         layer_attr.num_nodes += 1
 
@@ -124,7 +125,7 @@ class OneFactorHullWhiteTrinomialTree:
 
             # compute delta x for the child layer
             delta_x : float = self.model.sigma * np.sqrt(3 * delta_t)       # Equation (2)
-            current_parent_layer[0].layer_attr.delta_x = delta_x
+            current_parent_layer[0].layer_attr.next_layer_attr.delta_x = delta_x
 
             # compute variance for the child layer
             V : float = self.model.sigma**2 * delta_t                       # Footnote (3)
@@ -183,46 +184,57 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer = current_child_layer
             current_child_layer = []
 
-        # Step 4. Adjusting the Tree to ZCB yields
-        Q_lookup, alpha_lookup = {(0,0):1}, {0:0}
-        current_layer : LayerAttributesStruct = self.root_node.layer_attr
-        while current_layer is not None:
-            m : int = current_layer.layer_id
-            delta_R = current_layer.delta_x
+        # Step 4: Adjusting the Tree to match ZCB yields
+        # formula taken from https://www.math.hkust.edu.hk/~maykwok/courses/MAFS525/Topic4_4.pdf
+        Q_lookup = {(0, 0): 1.0}    # Present value at root
+        alpha_lookup = {}           # Store alpha_m for each layer
 
-            # Step 1: Calculate alpha_m
-            alpha_m = np.log(sum(
-                [
-                    Q_lookup[(m,j)]*np.exp(-j*delta_R*current_layer.child_delta_t) for j in range(
-                        -current_layer.num_nodes//2+1, current_layer.num_nodes//2+1) 
-                ]
-            ))
-            p_m1 = np.exp( -self.zcb_curve.get_zero_rate(current_layer.t) * current_layer.t)
-            alpha_m -= np.log(p_m1)
-            alpha_m /= current_layer.child_delta_t
-            alpha_lookup[m] = alpha_m
+        current_layer = self.root_node.layer_attr
 
-            # Step 2: Calculate Q for next layer
-            if current_layer.next_layer_attr is not None:
-                for j in range(-current_layer.next_layer_attr.num_nodes//2+1,
-                            current_layer.next_layer_attr.num_nodes//2+1):
-                    current_sum = 0
-                    for k in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1):
-                        current_val = (Q_lookup[ (m, k) ] 
-                                    * qkj(m, k, j) 
-                                    * np.exp((-alpha_m+k*(delta_R))
-                                                *current_layer.child_delta_t))
-                        current_sum += current_val
-                    Q_lookup[(m+1,j)] = current_sum
-
-            current_layer = current_layer.next_layer_attr
-
-        current_layer : LayerAttributesStruct = self.root_node.layer_attr
         while current_layer is not None:
             m = current_layer.layer_id
-            for k in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1):
-                self._node_lookup[(m, k)].value += alpha_lookup[m]
+            delta_R = current_layer.delta_x
+            delta_t = current_layer.child_delta_t
+
+            # Step 1: Calculate alpha_m to match ZCB (Formula on Slide 28)
+            alpha_m = np.log(
+                sum(
+                    [
+                        Q_lookup[(m, j)] * np.exp(-1*j*delta_R*delta_t)
+                        for j in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1)
+                    ]
+                )
+            )
+
+            p_m_plus_1 = np.exp(-1 * self.zcb_curve.get_zero_rate(current_layer.t+delta_t)*(current_layer.t+delta_t))            
+            alpha_m = (alpha_m - np.log(p_m_plus_1)) / current_layer.child_delta_t
+            alpha_lookup[m] = alpha_m
+
+            # Step 2: Compute state prices for the next layer (Formula on Slide 28)
+            if current_layer.next_layer_attr is not None:
+                next_layer_attr = current_layer.next_layer_attr
+                m_plus_1 = next_layer_attr.layer_id
+                for j in range(-next_layer_attr.num_nodes//2+1, next_layer_attr.num_nodes//2+1):
+                    Q_lookup[(m_plus_1, j)] = 0
+                    for k in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1):
+                        Q_lookup[(m_plus_1, j)] += (
+                                Q_lookup[(m, k)] 
+                                * qkj(m, k, j)
+                                * np.exp(-(alpha_m+k*delta_R)*delta_t)
+                            )
+            
             current_layer = current_layer.next_layer_attr
+
+        # Step 3: Adjust all node values using alpha_m
+        current_layer = self.root_node.layer_attr
+        while current_layer is not None:
+            m = current_layer.layer_id
+            alpha = alpha_lookup[m]
+            for j in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1):
+                self._node_lookup[(m, j)].value += alpha
+                self._node_lookup[(m, j)].Q = Q_lookup[(m, j)]
+            current_layer = current_layer.next_layer_attr
+
 
         print("Tree built successfully.")
 

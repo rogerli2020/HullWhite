@@ -10,7 +10,7 @@ class ZeroRateCurve(ABC):
 
 
 class LinearZeroRateCurve(ZeroRateCurve):
-    def __init__(self, r0: float = 0.01, r30: float = 0.05, max_t: float = 2.0):
+    def __init__(self, r0: float = 0, r30: float = 0.05, max_t: float = 30):
         """
         Simple linear zero rate curve.
 

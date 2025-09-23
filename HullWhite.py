@@ -8,6 +8,8 @@ class OneFactorHullWhiteModel:
         self.sigma = sigma
         self.theta = theta
 
+        assert self.sigma > 0, "sigma has to be positive."
+
     # def df(self, t, f_t, dt, dz):
     #     return ( (self.theta.get_value(t)-self.alpha*f_t)*dt + self.sigma*dz )
 
