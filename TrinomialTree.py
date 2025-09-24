@@ -73,6 +73,14 @@ class OneFactorHullWhiteTrinomialTree:
         min_num_timesteps = int(ttm // self.timestep) + 1
         timesteps = [i * self.timestep for i in range(min_num_timesteps)]
         self.payment_times = list(dict.fromkeys(heapq.merge(timesteps, self.payment_times)))
+    
+    def get_total_num_nodes(self) -> int:
+        count = 0
+        cur_layer = self.root_node.layer_attr
+        while cur_layer:
+            count += cur_layer.num_nodes
+            cur_layer = cur_layer.next_layer_attr
+        return count
 
     def tree_is_built(self) -> bool:
         """
