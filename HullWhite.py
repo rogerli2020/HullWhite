@@ -1,20 +1,6 @@
-
-class ThetaProcess:
-    pass
-
 class OneFactorHullWhiteModel:
-    def __init__(self, a : float, sigma : float, theta : ThetaProcess=None) -> None:
+    def __init__(self, a : float, sigma : float) -> None:
+        if sigma <= 0:
+            raise Exception("sigma must be positive.")
         self.a = a
         self.sigma = sigma
-        self.theta = theta
-
-        assert self.sigma > 0, "sigma has to be positive."
-
-    # def df(self, t, f_t, dt, dz):
-    #     return ( (self.theta.get_value(t)-self.alpha*f_t)*dt + self.sigma*dz )
-
-    # def dg(self, t, g_t, dt):
-    #     return ( (self.theta.get_value(t) - self.alpha*g_t)*dt )
-    
-    # def dx(self, t, f_t, g_t, dt, dz):
-    #     return self.df(t, f_t, dt, dz) - self.dg(t, g_t, dt)

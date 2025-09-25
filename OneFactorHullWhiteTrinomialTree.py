@@ -19,17 +19,18 @@ class LayerAttributesStruct:
 
 
 class Node:
-    def __init__(self, value : float, prob : float, j : int, layer_attr : LayerAttributesStruct) -> None:
+    def __init__(self, value: float, prob: float, 
+                 j: int, layer_attr: LayerAttributesStruct, parent: "Node") -> None:
         self.value : float = value
         self.prob : float = prob
         self.j : int = j
         self.children : list = []
         self.children_prob : list[float] = []
+        self.parent : "Node" = parent
         self.layer_attr = layer_attr
         self.Q : float = -1
 
         layer_attr.num_nodes += 1
-
 
 class OneFactorHullWhiteTrinomialTree:
     """
@@ -88,11 +89,10 @@ class OneFactorHullWhiteTrinomialTree:
         """
         return self.root_node is not None
 
-    def build_tree(self):
+    def build_tree(self, verbose=True):
         """
         Builds the tree based on the given model and payment times.
         """
-
         def qkj(m : int, k : int, j : int) -> float:
             target_node = self._node_lookup[ (m+1), j ]
             for key, val in enumerate(self._node_lookup[ (m, k) ].children):
@@ -100,10 +100,12 @@ class OneFactorHullWhiteTrinomialTree:
                     return self._node_lookup[ (m, k) ].children_prob[key]
             return 0
     
-        # start by initiating the first node on the valuation date. Initial variance is 0 since f(r)|t=0 is deterministic.
+        print("Building tree...")
+
+        # start by initiating the first node on the valuation date. Root node variance is zero.
         parent_layer_date = self.payment_times[0]
         root_layer_attr = LayerAttributesStruct(0, 0, self.payment_times[1])
-        root_node = Node(0, 1, 0, root_layer_attr)
+        root_node = Node(0, 1, 0, root_layer_attr, None)
         self._node_lookup[(0, 0)] = root_node
         self.root_node = root_node
         current_parent_layer : list[Node] = [root_node]
@@ -122,7 +124,7 @@ class OneFactorHullWhiteTrinomialTree:
             delta_t : float = (child_layer_date - parent_layer_date)
             assert delta_t >= 0, "Delta t must be positive."
 
-            # this is purely for graphing
+            # set up layer data
             child_layer_attr = LayerAttributesStruct(
                 layer_id=(current_parent_layer[0].layer_attr.layer_id+1),
                 t=child_layer_date,
@@ -181,12 +183,21 @@ class OneFactorHullWhiteTrinomialTree:
                         parent.children.append(existing_node)
                         parent.children_prob.append(prob_c)
                     else:
-                        node = Node(value=val_c, j=j_c, prob=parent.prob * prob_c, layer_attr=child_layer_attr)
+                        node = Node(value=val_c, j=j_c, prob=parent.prob * prob_c, 
+                                    layer_attr=child_layer_attr, parent=parent)
                         self._node_lookup[ (child_layer_attr.layer_id, node.j) ] = node
                         current_child_layer.append(node)
                         parent.children.append(node)
                         parent.children_prob.append(prob_c)
-                
+            
+            # simple print statement
+            if verbose:
+                print(
+                    f"Constructed layer {child_layer_attr.layer_id} "
+                    f"for t={child_layer_attr.t}. "
+                    f"Number of nodes: {child_layer_attr.num_nodes}."
+                )
+
             # prepare for new iteration
             parent_layer_date = child_layer_date
             current_parent_layer = current_child_layer
@@ -198,6 +209,7 @@ class OneFactorHullWhiteTrinomialTree:
         alpha_lookup = {}           # Store alpha_m for each layer
 
         current_layer = self.root_node.layer_attr
+        print("Calibrating the tree to zero curve...")
 
         while current_layer is not None:
             m = current_layer.layer_id
@@ -243,10 +255,9 @@ class OneFactorHullWhiteTrinomialTree:
                 self._node_lookup[(m, j)].Q = Q_lookup[(m, j)]
             current_layer = current_layer.next_layer_attr
 
-
         print("Tree built successfully.")
 
-
+    #region visualize_tree
     def visualize_tree(self):
         """
         ChatGPT: visualization of the Hull-White trinomial tree (no labels, batched drawing).
@@ -297,3 +308,4 @@ class OneFactorHullWhiteTrinomialTree:
         ax.set_title("Hull-White Trinomial Tree")
         ax.grid(True, alpha=0.2)
         plt.show()
+    #endregion

@@ -2,8 +2,9 @@ from HullWhite import OneFactorHullWhiteModel
 from TrinomialTree import OneFactorHullWhiteTrinomialTree
 from ZeroRateCurve import LinearZeroRateCurve
 
-payment_times = [0, .25, 1.25, 2.25, 3.25]
-model = OneFactorHullWhiteModel(0.2, 0.1)
-tree = OneFactorHullWhiteTrinomialTree(model, payment_times, LinearZeroRateCurve(), 0.25)
+payment_times = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]
+model = OneFactorHullWhiteModel(0.002, 0.01)
+tree = OneFactorHullWhiteTrinomialTree(model, payment_times, LinearZeroRateCurve(), .5)
 
-tree.build_tree()
+tree.build_tree(verbose=False)
+tree.visualize_tree()
