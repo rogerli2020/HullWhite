@@ -1,5 +1,5 @@
 from HullWhite import OneFactorHullWhiteModel
-from TrinomialTree import OneFactorHullWhiteTrinomialTree
+from OneFactorHullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
 from ZeroRateCurve import LinearZeroRateCurve
 
 payment_times = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]

@@ -19,3 +19,6 @@ class Swaption:
         self.payment_frequency = payment_frequency
         self.notional = notional
         self.strike = strike
+    
+    def get_valuation_times(self) -> list[float]:
+        ...

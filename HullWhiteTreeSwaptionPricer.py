@@ -3,7 +3,7 @@ from Swaption import Swaption
 
 class HullWhiteTreeSwaptionPricer:
     """
-    Prices European swaptions using a built Hull-White trinomial tree.
+    Prices European swaptions using a Hull-White trinomial tree.
 
     Parameters
     ----------
@@ -16,8 +16,9 @@ class HullWhiteTreeSwaptionPricer:
             raise Exception("Tree must be built before pricing swaptions.")
         self.tree = tree
 
+    def _verify_timesteps(self, swaption: Swaption):
+        ...
+
     def price(self, swaption: Swaption) -> float:
-        """
-        Prices a swaption using backward induction on the trinomial tree.
-        """
-        raise NotImplementedError("Unknown settlement type.")
+        self._verify_timesteps(swaption)
+        ...
