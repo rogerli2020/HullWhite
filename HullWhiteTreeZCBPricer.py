@@ -1,4 +1,4 @@
-from OneFactorHullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
+from HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
 import numpy as np
 
 class HullWhiteTreeZCBPricer:

@@ -256,7 +256,12 @@ class OneFactorHullWhiteTrinomialTree:
             current_layer = current_layer.next_layer_attr
 
         print("Tree built successfully.")
-
+    
+    def node_lookup(self, m, j) -> Node:
+        if (m, j) not in self._node_lookup:
+            raise Exception(f"No node found at ({m}, {j}).")
+        return self._node_lookup[(m, j)]
+    
     #region visualize_tree
     def visualize_tree(self):
         """
