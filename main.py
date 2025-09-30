@@ -4,9 +4,9 @@ from HullWhite import OneFactorHullWhiteModel
 from HullWhiteTreeSwaptionPricer import HullWhiteTreeEuropeanSwaptionPricer
 from ZeroRateCurve import StepwiseZeroRateCurve, LinearZeroRateCurve
 
-hw_model = OneFactorHullWhiteModel(a=0.003, sigma=0.2)
-# zcb_curve = StepwiseZeroRateCurve()
-zcb_curve = LinearZeroRateCurve()
+hw_model = OneFactorHullWhiteModel(a=0.003, sigma=0.01)
+zcb_curve = StepwiseZeroRateCurve()
+# zcb_curve = LinearZeroRateCurve()
 swaption = EuropeanSwaption(
     swaption_type=SwaptionType.PAYER,
     expiry=2,
@@ -21,7 +21,7 @@ swaption = EuropeanSwaption(
 tree = OneFactorHullWhiteTrinomialTree(hw_model, swaption.get_valuation_times(), zcb_curve, 0.5)
 
 tree.build_tree()
-# tree.visualize_tree()
+tree.visualize_tree()
 
 pricer = HullWhiteTreeEuropeanSwaptionPricer(tree)
 price = pricer.price(swaption)

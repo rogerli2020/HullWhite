@@ -62,6 +62,7 @@ class OneFactorHullWhiteTrinomialTree:
         self.timestep : float = timestep
         self.root_node : Node = None
         
+        self.t_to_layer : dict[float, LayerAttributesStruct] = {}
         self._node_lookup : dict[tuple, Node] = {}
         self._build_timesteps()
 
@@ -254,6 +255,12 @@ class OneFactorHullWhiteTrinomialTree:
                 self._node_lookup[(m, j)].value += alpha
                 self._node_lookup[(m, j)].Q = Q_lookup[(m, j)]
             current_layer = current_layer.next_layer_attr
+        
+        # bookkeeping: store layer attributes by time
+        current_layer = self.root_node.layer_attr
+        while current_layer is not None:
+            self.t_to_layer[current_layer.t] = current_layer
+            current_layer = current_layer.next_layer_attr
 
         print("Tree built successfully.")
     
@@ -261,6 +268,12 @@ class OneFactorHullWhiteTrinomialTree:
         if (m, j) not in self._node_lookup:
             raise Exception(f"No node found at ({m}, {j}).")
         return self._node_lookup[(m, j)]
+
+    def get_nodes_at_layer(self, layer: LayerAttributesStruct) -> list[Node]:
+        nodes = []
+        for j in range(-layer.num_nodes//2+1, layer.num_nodes//2+1):
+            nodes.append(self.node_lookup(layer.layer_id, j))
+        return nodes
     
     #region visualize_tree
     def visualize_tree(self):
