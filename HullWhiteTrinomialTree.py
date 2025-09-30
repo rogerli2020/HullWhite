@@ -15,7 +15,8 @@ class LayerAttributesStruct:
     child_delta_t : float = 0
     num_nodes : int = 0
     delta_x : float = 0
-    next_layer_attr = None
+    next_layer_attr : "LayerAttributesStruct" = None
+    prev_layer_attr : "LayerAttributesStruct" = None
 
 
 class Node:
@@ -130,7 +131,8 @@ class OneFactorHullWhiteTrinomialTree:
                 layer_id=(current_parent_layer[0].layer_attr.layer_id+1),
                 t=child_layer_date,
                 child_delta_t=self.timestep,
-                num_nodes=0
+                num_nodes=0,
+                prev_layer_attr=current_parent_layer[0].layer_attr
             )
             current_parent_layer[0].layer_attr.next_layer_attr = child_layer_attr
 

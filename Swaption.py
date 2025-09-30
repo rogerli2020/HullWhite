@@ -8,7 +8,7 @@ class EuropeanSwaption:
     def __init__(self, swaption_type: SwaptionType,
                  expiry: float, swap_start: float, swap_end: float,
                  payment_frequency: float, notional: float, strike: float, 
-                 fixed: float, spread: float) -> None:
+                 fixed: float) -> None:
         self.swaption_type = swaption_type
         self.expiry = expiry
         self.swap_start = swap_start
@@ -17,7 +17,6 @@ class EuropeanSwaption:
         self.notional = notional
         self.strike = strike
         self.fixed = fixed
-        self.spread = spread
     
     def get_valuation_times(self) -> list[float]:
         valuation_times = [0.0]
