@@ -30,14 +30,6 @@ class HullWhiteTreeEuropeanSwaptionPricer:
                 return False
         return True
 
-    def price_swap(self, swaption: EuropeanSwaption, valuation_lookup: dict={}) -> float:
-        """
-        Returns the PV of the underlying swap at its initiation.
-        """
-        if not self._verify_timesteps(swaption):
-            raise Exception("Underlying swap is incompatible with the given tree due to misaligned time gaps.")
-        raise NotImplementedError
-
     def price(self, swaption: EuropeanSwaption) -> float:
         if not self._verify_timesteps(swaption):
             raise Exception("Underlying swap is incompatible with the given tree due to misaligned time gaps.")
