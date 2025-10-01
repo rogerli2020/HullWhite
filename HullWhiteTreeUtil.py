@@ -11,7 +11,8 @@ class HullWhiteTreeUtil:
         return tree.get_nodes_at_layer(layer)
 
     @staticmethod
-    def get_zcb_price_dict(tree: OneFactorHullWhiteTrinomialTree, t0: float, T: float) -> dict:
+    def get_zcb_price_dict(tree: OneFactorHullWhiteTrinomialTree, 
+                           t0: float, T: float, maturity_node_values: dict={}) -> dict:
         if t0 not in tree.t_to_layer or T not in tree.t_to_layer:
             raise Exception(f"Invalid t0 or T for the given tree.")
         if t0 > T:
@@ -20,7 +21,12 @@ class HullWhiteTreeUtil:
         # set up layer data at T
         zcb_dict = {}
         for node in tree.get_nodes_at_layer(tree.t_to_layer[T]):
-            zcb_dict[ (node.layer_attr.layer_id, node.j) ] = 1
+            if (node.layer_attr.layer_id, node.j) in maturity_node_values:
+                # use the given maturity value if given.
+                zcb_dict[ (node.layer_attr.layer_id, node.j) ] = maturity_node_values[ 
+                    zcb_dict[ (node.layer_attr.layer_id, node.j) ] ]
+            else:
+                zcb_dict[ (node.layer_attr.layer_id, node.j) ] = 1
 
         # edge case
         if t0 == T:
@@ -64,3 +70,7 @@ class HullWhiteTreeUtil:
             price += node_zcb * Q
         
         return price
+    
+    @staticmethod
+    def discount_cf_given_nodes_and_zcb_price_dict():
+        ...
