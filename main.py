@@ -21,6 +21,6 @@ tree = OneFactorHullWhiteTrinomialTree(hw_model, swaption.get_valuation_times(),
 
 tree.build_tree()
 
-d = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0=swaption.swap_start, T=swaption.swap_end)
-
+pricer = HullWhiteTreeEuropeanSwaptionPricer(tree)
+pricer.price(swaption)
 # 2.123 %

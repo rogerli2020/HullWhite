@@ -266,7 +266,7 @@ class OneFactorHullWhiteTrinomialTree:
 
         print("Tree built successfully.")
     
-    def node_lookup(self, m, j) -> Node:
+    def node_lookup(self, m: int, j: int) -> Node:
         if (m, j) not in self._node_lookup:
             raise Exception(f"No node found at ({m}, {j}).")
         return self._node_lookup[(m, j)]

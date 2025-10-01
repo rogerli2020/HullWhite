@@ -14,13 +14,17 @@ class HullWhiteTreeUtil:
     def get_zcb_price_dict(tree: OneFactorHullWhiteTrinomialTree, t0: float, T: float) -> dict:
         if t0 not in tree.t_to_layer or T not in tree.t_to_layer:
             raise Exception(f"Invalid t0 or T for the given tree.")
-        if t0 >= T:
+        if t0 > T:
             raise Exception(f"t0 cannot be greater than or equal to T.")
         
         # set up layer data at T
         zcb_dict = {}
         for node in tree.get_nodes_at_layer(tree.t_to_layer[T]):
             zcb_dict[ (node.layer_attr.layer_id, node.j) ] = 1
+
+        # edge case
+        if t0 == T:
+            return zcb_dict
 
         # backward induction
         cur_layer: LayerAttributesStruct = tree.t_to_layer[T].prev_layer_attr
@@ -42,3 +46,21 @@ class HullWhiteTreeUtil:
             cur_layer = cur_layer.prev_layer_attr
         
         return zcb_dict
+    
+    @staticmethod
+    def P(tree: OneFactorHullWhiteTrinomialTree, t0: float, T: float) -> float:
+        return HullWhiteTreeUtil.price_zcb(tree, t0, T)
+    
+    @staticmethod
+    def price_zcb(tree: OneFactorHullWhiteTrinomialTree, t0: float, T: float) -> float:
+        zcb_prices = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, T)
+
+        price = 0.0
+        valuation_layer: LayerAttributesStruct = tree.t_to_layer[t0]
+        for node in tree.get_nodes_at_layer(valuation_layer):
+            ind = (valuation_layer.layer_id, node.j)
+            Q = tree.node_lookup(*ind).Q
+            node_zcb = zcb_prices[ind]
+            price += node_zcb * Q
+        
+        return price
