@@ -1,5 +1,6 @@
 from HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree, Node, LayerAttributesStruct
 import numpy as np
+from Swaption import EuropeanSwaption
 
 class HullWhiteTreeUtil:
 
@@ -72,5 +73,16 @@ class HullWhiteTreeUtil:
         return price
     
     @staticmethod
-    def discount_cf_given_nodes_and_zcb_price_dict():
-        ...
+    def get_sum_of_discounted_cf_given_nodes(nodes, zcb_price_dict, notional):
+        total = 0.0
+        for node in nodes:
+            m, j = node.layer_attr.layer_id, node.j
+            zcb_price = zcb_price_dict[(m, j)]
+            total += zcb_price * notional
+        return total
+    
+    @staticmethod
+    def get_node_specific_zcb_price(tree: OneFactorHullWhiteTrinomialTree, node: Node, T):
+        t0: float = node.layer_attr.t
+        zcb_dict = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, T)
+        return zcb_dict[ (node.layer_attr.layer_id, node.j) ]

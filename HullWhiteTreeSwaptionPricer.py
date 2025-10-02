@@ -28,6 +28,9 @@ class HullWhiteTreeEuropeanSwaptionPricer:
             if t not in tree_ts:
                 return False
         return True
+    
+    def get_fixed_leg_payment_nodes(self, swaption: EuropeanSwaption) -> bool:
+        pass
 
     def price(self, swaption: EuropeanSwaption) -> float:
         if not self._verify_timesteps(swaption):
@@ -39,21 +42,26 @@ class HullWhiteTreeEuropeanSwaptionPricer:
         
         option_premium_at_expiry_nodes: dict = {}
         for node in self.tree.get_nodes_at_layer(expiry_layer):
-            # floating leg (approximation)
-            floating_leg = 1 - zcb_prices[(expiry_layer.layer_id, node.j)]
+            # floating leg (approximation!!)
+            floating_leg = 1.0 - zcb_prices[ (expiry_layer.layer_id, node.j) ]
 
             # fixed leg
-            fixed_leg = ...
-
-            # scale them to dollar value?
-            ...
+            fixed_leg = 0.0
+            for T in swaption.get_fixed_leg_payment_times():
+                this_P = HullWhiteTreeUtil.get_node_specific_zcb_price(self.tree, node, T)
+                fixed_leg += this_P # assume tau is just 1.
+            fixed_leg *= swaption.fixed
 
             # option payoff
+            payer_payoff = floating_leg - fixed_leg
             if swaption.swaption_type == SwaptionType.PAYER:
-                option_premium_at_expiry_nodes[(expiry_layer.layer_id, node.j)] = max(floating_leg-fixed_leg, 0)
+                option_premium_at_expiry_nodes[(expiry_layer.layer_id, node.j)] = max(payer_payoff, 0.0)
             elif swaption.swaption_type == SwaptionType.RECEIVER:
-                option_premium_at_expiry_nodes[(expiry_layer.layer_id, node.j)] = max(fixed_leg-floating_leg, 0)        
+                option_premium_at_expiry_nodes[(expiry_layer.layer_id, node.j)] = max(-payer_payoff, 0.0)        
 
-        # discount option_price back 
-
-        return option_price
+        # add up and discount the prices at each expiry node
+        swaption_price = 0.0
+        for key, val in option_premium_at_expiry_nodes.items():
+            swaption_price += self.tree._node_lookup[key].Q * val
+        
+        return swaption_price

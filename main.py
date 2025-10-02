@@ -9,18 +9,21 @@ hw_model = OneFactorHullWhiteModel(a=0.003, sigma=0.01)
 zcb_curve = StepwiseZeroRateCurve()
 swaption = EuropeanSwaption(
     swaption_type=SwaptionType.PAYER,
-    expiry=2,
-    swap_start=2,
+    expiry=1,
+    swap_start=1,
     swap_end=6,
     payment_frequency=0.5,
     notional=1,
-    strike=0.04,
-    fixed=0.04,
+    strike=0.00,
+    fixed=0.00,
 )
-tree = OneFactorHullWhiteTrinomialTree(hw_model, swaption.get_valuation_times(), zcb_curve, 0.5)
 
-tree.build_tree()
+swaption.set_ATM_strike_fixed_rate_and_strike(zcb_curve)
+
+tree = OneFactorHullWhiteTrinomialTree(hw_model, 
+                                       swaption.get_valuation_times(), zcb_curve, swaption.payment_frequency)
+
+tree.build_tree(verbose=True)
 
 pricer = HullWhiteTreeEuropeanSwaptionPricer(tree)
-pricer.price(swaption)
-# 2.123 %
+print(pricer.price(swaption))
