@@ -8,7 +8,7 @@ class ZeroRateCurve(ABC):
         """
         pass
 
-class StepwiseZeroRateCurve(ZeroRateCurve):
+class ExampleStepwiseZeroRateCurve(ZeroRateCurve):
     def __init__(self):
         self.curve = [
             [0.25, 0.02046],
@@ -43,6 +43,28 @@ class StepwiseZeroRateCurve(ZeroRateCurve):
                 return cur_rate
         return self.curve[-1][1]
     
+
+
+class ExampleLinearlyInterpolatedZeroRateCurve(ExampleStepwiseZeroRateCurve):
+    def get_zero_rate(self, t):
+        times = [point[0] for point in self.curve]
+        rates = [point[1] for point in self.curve]
+
+        if t <= times[0]:
+            return rates[0]
+        if t >= times[-1]:
+            return rates[-1]
+
+        for i in range(len(times)-1):
+            t0, r0 = times[i], rates[i]
+            t1, r1 = times[i+1], rates[i+1]
+            if t0 <= t <= t1:
+                slope = (r1 - r0) / (t1 - t0)
+                return r0 + slope * (t - t0)
+
+        # fallback (should not be reached)
+        return rates[-1]
+
 
 
 class NielsonSiegelSvenssonCurve(ZeroRateCurve):

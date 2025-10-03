@@ -1,6 +1,7 @@
 from enum import Enum
 from ZeroRateCurve import ZeroRateCurve
 import numpy as np
+from HullWhiteTreeUtil import round_list_floats
 
 class SwaptionType(Enum):
     PAYER = "payer"
@@ -24,6 +25,7 @@ class EuropeanSwaption:
         self.strike = self.get_par_rate(zcb_curve)
         self.fixed = self.strike
     
+    @round_list_floats
     def get_fixed_leg_payment_times(self, fixed_tau=None) -> list[float]:
         # fixed leg is paid annually (ASSUMPTION!!... based on Bloomberg DESC)
         times = []
@@ -33,9 +35,11 @@ class EuropeanSwaption:
             times.append(cur_time)
         return times
 
+    @round_list_floats
     def get_floating_leg_payment_times(self) -> list[float]:
         return self.get_fixed_leg_payment_times(fixed_tau=self.payment_frequency)
 
+    @round_list_floats
     def get_valuation_times(self) -> list[float]:
         valuation_times = [0.0, self.swap_start]
         cur_time = self.swap_start

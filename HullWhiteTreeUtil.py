@@ -1,6 +1,17 @@
 from HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree, Node, LayerAttributesStruct
 import numpy as np
-from Swaption import EuropeanSwaption
+from functools import wraps
+
+# decorator for rounding list of floats to 4 digits...
+def round_list_floats(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        if isinstance(result, (list, tuple)):
+            rounded = [round(x, 4) if isinstance(x, float) else x for x in result]
+            return type(result)(rounded)
+        return result
+    return wrapper
 
 class HullWhiteTreeUtil:
 
@@ -14,7 +25,10 @@ class HullWhiteTreeUtil:
     @staticmethod
     def get_zcb_price_dict(tree: OneFactorHullWhiteTrinomialTree, 
                            t0: float, T: float, maturity_node_values: dict={}) -> dict:
+        t0 = round(t0, 4)
+        T = round(T, 4)
         if t0 not in tree.t_to_layer or T not in tree.t_to_layer:
+            print(t0, T, tree.t_to_layer.keys())
             raise Exception(f"Invalid t0 or T for the given tree.")
         if t0 > T:
             raise Exception(f"t0 cannot be greater than or equal to T.")
@@ -56,10 +70,14 @@ class HullWhiteTreeUtil:
     
     @staticmethod
     def P(tree: OneFactorHullWhiteTrinomialTree, t0: float, T: float) -> float:
+        t0 = round(t0, 4)
+        T = round(T, 4)
         return HullWhiteTreeUtil.price_zcb(tree, t0, T)
     
     @staticmethod
     def price_zcb(tree: OneFactorHullWhiteTrinomialTree, t0: float, T: float) -> float:
+        t0 = round(t0, 4)
+        T = round(T, 4)
         zcb_prices = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, T)
 
         price = 0.0
@@ -83,6 +101,7 @@ class HullWhiteTreeUtil:
     
     @staticmethod
     def get_node_specific_zcb_price(tree: OneFactorHullWhiteTrinomialTree, node: Node, T):
+        T = round(T, 4)
         t0: float = node.layer_attr.t
         zcb_dict = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, T)
         return zcb_dict[ (node.layer_attr.layer_id, node.j) ]

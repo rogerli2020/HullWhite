@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from dataclasses import dataclass
 from ZeroRateCurve import ZeroRateCurve
-import heapq
+from dataclasses import dataclass, field
 
 EPSILON = 1e-5
 
@@ -17,6 +17,7 @@ class LayerAttributesStruct:
     delta_x : float = 0
     next_layer_attr : "LayerAttributesStruct" = None
     prev_layer_attr : "LayerAttributesStruct" = None
+    js: list[int] = field(default_factory=list)
 
 
 class Node:
@@ -32,6 +33,7 @@ class Node:
         self.Q : float = -1
 
         layer_attr.num_nodes += 1
+        layer_attr.js.append(self.j)
 
 class OneFactorHullWhiteTrinomialTree:
     """
@@ -72,10 +74,22 @@ class OneFactorHullWhiteTrinomialTree:
         assert all(t2 > t1 for t1, t2 in zip(self.payment_times, self.payment_times[1:])), "Payment times must be in ascending order."
     
     def _build_timesteps(self):
-        ttm = self.payment_times[-1]
-        min_num_timesteps = int(ttm // self.timestep) + 1
-        timesteps = [i * self.timestep for i in range(min_num_timesteps)]
-        self.payment_times = list(dict.fromkeys(heapq.merge(timesteps, self.payment_times)))
+        if not self.payment_times:
+            raise ValueError("self.payment_times is empty.")
+        if self.payment_times[0] != 0.0:
+            raise ValueError("self.payment_times must start at 0.")
+
+        new_times = []
+        last_time = 0.0
+
+        for pt in self.payment_times:
+            t = last_time
+            while t + self.timestep < pt:
+                t += self.timestep
+                new_times.append(round(t, 4))
+            new_times.append(pt)
+            last_time = pt
+        self.payment_times = sorted(set([0.0] + new_times))
     
     def get_total_num_nodes(self) -> int:
         count = 0
@@ -96,13 +110,16 @@ class OneFactorHullWhiteTrinomialTree:
         Builds the tree based on the given model and payment times.
         """
         def qkj(m : int, k : int, j : int) -> float:
-            target_node = self._node_lookup[ (m+1), j ]
+            if (m+1, j) not in self._node_lookup:
+                return 0
+            target_node = self._node_lookup[ (m+1, j) ]
             for key, val in enumerate(self._node_lookup[ (m, k) ].children):
                 if val == target_node:
                     return self._node_lookup[ (m, k) ].children_prob[key]
             return 0
     
-        print("Building tree...")
+        if verbose:
+            print("Building tree...")
 
         # start by initiating the first node on the valuation date. Root node variance is zero.
         parent_layer_date = self.payment_times[0]
@@ -137,11 +154,11 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer[0].layer_attr.next_layer_attr = child_layer_attr
 
             # compute delta x for the child layer
-            delta_x : float = self.model.sigma * np.sqrt(3 * delta_t)       # Equation (2)
+            delta_x : float = self.model.sigma(parent_layer_date) * np.sqrt(3 * delta_t)       # Equation (2)
             current_parent_layer[0].layer_attr.next_layer_attr.delta_x = delta_x
 
             # compute variance for the child layer
-            V : float = self.model.sigma**2 * delta_t                       # Footnote (3)
+            V : float = self.model.sigma(parent_layer_date)**2 * delta_t                       # Footnote (3)
             assert V >= 0, "Variance must be positive."
 
             # prevent redundant calculations
@@ -171,9 +188,7 @@ class OneFactorHullWhiteTrinomialTree:
                     p_mid(alpha(m_i)),
                     p_up(alpha(m_i+1)),
                 ]
-
-                # sanity check!
-                assert abs(sum(probs) - 1) < EPSILON, "Sum of transition probabilities is not 1."
+                assert abs(sum(probs) - 1) < EPSILON
 
                 # recombine
                 for val_c, j_c, prob_c in zip(children_values, children_j, probs):
@@ -212,7 +227,8 @@ class OneFactorHullWhiteTrinomialTree:
         alpha_lookup = {}           # Store alpha_m for each layer
 
         current_layer = self.root_node.layer_attr
-        print("Calibrating the tree to zero curve...")
+        if verbose:
+            print("Calibrating the tree to zero curve...")
 
         while current_layer is not None:
             m = current_layer.layer_id
@@ -224,7 +240,7 @@ class OneFactorHullWhiteTrinomialTree:
                 sum(
                     [
                         Q_lookup[(m, j)] * np.exp(-1*j*delta_R*delta_t)
-                        for j in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1)
+                        for j in current_layer.js
                     ]
                 )
             )
@@ -237,9 +253,12 @@ class OneFactorHullWhiteTrinomialTree:
             if current_layer.next_layer_attr is not None:
                 next_layer_attr = current_layer.next_layer_attr
                 m_plus_1 = next_layer_attr.layer_id
-                for j in range(-next_layer_attr.num_nodes//2+1, next_layer_attr.num_nodes//2+1):
+                for j in next_layer_attr.js:
                     Q_lookup[(m_plus_1, j)] = 0
-                    for k in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1):
+                    for k in current_layer.js:
+                        # print(current_layer.layer_id)
+                        # print(current_layer.num_nodes)
+                        # print(self._node_lookup)
                         Q_lookup[(m_plus_1, j)] += (
                                 Q_lookup[(m, k)] 
                                 * qkj(m, k, j)
@@ -253,7 +272,7 @@ class OneFactorHullWhiteTrinomialTree:
         while current_layer is not None:
             m = current_layer.layer_id
             alpha = alpha_lookup[m]
-            for j in range(-current_layer.num_nodes//2+1, current_layer.num_nodes//2+1):
+            for j in current_layer.js:
                 self._node_lookup[(m, j)].value += alpha
                 self._node_lookup[(m, j)].Q = Q_lookup[(m, j)]
             current_layer = current_layer.next_layer_attr
@@ -264,7 +283,8 @@ class OneFactorHullWhiteTrinomialTree:
             self.t_to_layer[current_layer.t] = current_layer
             current_layer = current_layer.next_layer_attr
 
-        print("Tree built successfully.")
+        if verbose:
+            print("Tree built successfully.")
     
     def node_lookup(self, m: int, j: int) -> Node:
         if (m, j) not in self._node_lookup:
