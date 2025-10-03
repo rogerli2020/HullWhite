@@ -293,7 +293,7 @@ class OneFactorHullWhiteTrinomialTree:
 
     def get_nodes_at_layer(self, layer: LayerAttributesStruct) -> list[Node]:
         nodes = []
-        for j in range(-layer.num_nodes//2+1, layer.num_nodes//2+1):
+        for j in layer.js:
             nodes.append(self.node_lookup(layer.layer_id, j))
         return nodes
     

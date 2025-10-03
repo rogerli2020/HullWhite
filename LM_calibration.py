@@ -52,10 +52,13 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
     return pricer.price(swaption) * 10000  # convert to bps
 
 # objective function
-def residuals(theta, dataframe, timestep=0.5, max_workers=6):
+ITER_COUNT = 0
+def residuals(theta, dataframe, timestep=0.25, max_workers=6):
+    global ITER_COUNT
+    ITER_COUNT += 1
     a = theta[0]
     sigmas = theta[1:]
-    print(f"Current a: {a}\t Current sigmas: {sigmas}")
+    print(f"Iteration: {ITER_COUNT}\t Current a: {a}\t Current sigmas: {sigmas}")
     model = OneFactorHullWhiteModel(a)
     model.set_sigmas_from_vector(sigmas)
 
@@ -76,7 +79,8 @@ def residuals(theta, dataframe, timestep=0.5, max_workers=6):
     return np.array(prices) - dataframe['Quoted_Premium'].values
 
 # initial guess
-theta0 = [0.01] + [0.01]*12
+theta0 = [0.075] + [0.0020, 0.0030, 0.0030, 0.0040, 0.0045, 0.0050, 
+                                  0.0050,  0.0050, 0.0050, 0.0050, 0.0060, 0.0060]
 
 # Levenberg–Marquardt
 # res = least_squares(residuals, theta0, args=(df.head(15),), method='lm')
@@ -84,7 +88,7 @@ theta0 = [0.01] + [0.01]*12
 # TRF
 lower_bounds = [0.0] + [1e-6]*12  # a >= 0, sigmas > 0
 upper_bounds = [0.1] + [0.5]*12   # set reasonable upper limits
-res = least_squares(residuals, theta0, args=(df.head(25),), method='trf',
+res = least_squares(residuals, theta0, args=(df.head(35),), method='trf',
                     bounds=(lower_bounds, upper_bounds))
 
 
@@ -95,3 +99,14 @@ calibrated_sigmas = res.x[1:]
 print("Calibrated a:", calibrated_a)
 print("Calibrated sigmas (1y..30y):", calibrated_sigmas)
 print("Residual norm:", np.linalg.norm(res.fun))
+
+
+
+# Iteration: 204   Current a: 0.006043526639966153         Current sigmas: [0.00305608 0.00902169 0.01120199 0.01938874 0.00418704 0.01998177
+#  0.01770805 0.01788907 0.01594628 0.0163813  0.00763923 0.01805914]
+
+
+# Calibrated a: 0.07540845118597078
+# Calibrated sigmas (1y..30y): [0.00181337 0.00333077 0.00369424 0.0110421  0.00619081 0.01421726
+#  0.01296167 0.0071087  0.00859593 0.01194483 0.0036233  0.01084023]
+# Residual norm: 2016.9109740280617
