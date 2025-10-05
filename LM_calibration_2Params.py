@@ -9,7 +9,6 @@ from HullWhiteTreeSwaptionPricer import HullWhiteTreeEuropeanSwaptionPricer
 from scipy.optimize import least_squares
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-
 # load data
 df = pd.read_csv("./data/swaption_market_quotes.csv")
 df = df.dropna()
@@ -34,6 +33,7 @@ def extract_tenors(description):
 
 # function for pricing swaptions using the models
 def price_swaption(hw_model, swap_start, swap_end, timestep):
+    print("Pricing swaption...")
     zcb_curve = ExampleNSSCurve()
     swaption = EuropeanSwaption(
         swaption_type=SwaptionType.PAYER,
@@ -47,17 +47,35 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
     )
     swaption.set_ATM_strike_fixed_rate_and_strike(zcb_curve)
     tree = OneFactorHullWhiteTrinomialTree(hw_model, swaption.get_valuation_times(), zcb_curve, timestep)
-    tree.build_tree(verbose=False)
+    tree.build_tree(verbose=True)
     pricer = HullWhiteTreeEuropeanSwaptionPricer(tree)
+    print("Swaption priced!")
     return pricer.price(swaption) * 10000  # convert to bps
 
-# objective function
-def residuals(theta, dataframe, timestep=0.5, max_workers=6):
-    a = theta[0]
-    sigmas = theta[1:]
-    model = OneFactorHullWhiteModel(a)
-    model.set_sigmas_from_vector(sigmas)
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
+ITER_COUNT = 0
+PREV_MSE = 0.0
+
+def residuals(theta, dataframe, timestep=0.4, max_workers=12):
+    global ITER_COUNT
+    global PREV_MSE
+    ITER_COUNT += 1
+
+    a = theta[0]
+    sigma = theta[1]
+
+    log_str = f"Iteration: {ITER_COUNT}\t Current a: {a:.6f}\t Current sigma: {sigma:.6f}"
+    print(log_str)
+    with open("./log.txt", "a") as f:
+        f.write("\n" + log_str)
+
+    # initialize model
+    model = OneFactorHullWhiteModel(a)
+    model.set_constant_sigma(sigma)
+
+    # helper function for price swaption
     def price_row(row):
         swap_start, swap_dur = extract_tenors(row.Description)
         swap_end = swap_start + swap_dur
@@ -65,6 +83,7 @@ def residuals(theta, dataframe, timestep=0.5, max_workers=6):
         swap_end = round(swap_end, 4)
         return price_swaption(model, swap_start, swap_end, timestep)
 
+    # price them all! In parallel!
     prices = [0.0] * len(dataframe)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(price_row, row): i for i, row in enumerate(dataframe.itertuples())}
@@ -72,40 +91,39 @@ def residuals(theta, dataframe, timestep=0.5, max_workers=6):
             idx = futures[future]
             prices[idx] = future.result()
 
-    return np.array(prices) - dataframe['Quoted_Premium'].values
+    # bps -> unscaled
+    market_prices = dataframe['Quoted_Premium'].values / 10000
 
-# initial guess
-# theta0 = [0.006043526639966153] + [0.00305608, 0.00902169, 0.01120199, 0.01938874, 0.00418704, 0.01998177,
-#                                    0.01770805, 0.01788907, 0.01594628, 0.0163813,  0.00763923, 0.01805914]
+    # residuals
+    residuals_array = np.array(prices) - market_prices
 
-# Levenberg–Marquardt
-# res = least_squares(residuals, theta0, args=(df.head(15),), method='lm')
+    # log and print!
+    MSE = np.mean(residuals_array ** 2)
+    MSE_change = MSE - PREV_MSE
+    PREV_MSE = MSE
 
-# TRF
-# lower_bounds = [0.0] + [1e-6]*12  # a >= 0, sigmas > 0
-# upper_bounds = [0.1] + [0.5]*12   # set reasonable upper limits
-# res = least_squares(residuals, theta0, args=(df.head(25),), method='trf',
-#                     bounds=(lower_bounds, upper_bounds))
+    print(f"\tCurrent MSE: {MSE:.8f}")
+    print(f"\tChange in MSE: {MSE_change:.8f}")
+    with open("./log.txt", "a") as f:
+        f.write(f"\n\tCurrent MSE: {MSE:.8f}")
+        f.write(f"\n\tChange in MSE: {MSE_change:.8f}")
 
-# theta0 = [0.07540845118597078] + [0.00181337, 0.00333077, 0.00369424, 0.0110421,  0.00619081, 0.01421726,
-# 0.01296167, 0.0071087,  0.00859593, 0.01194483, 0.0036233,  0.01084023]
-# res = residuals(theta0, df.head(25))
-# res = res ** 2
-# print(np.average(res))
-
-# res = residuals(theta0, df.iloc[25:50])
-# res = res ** 2
-# print(np.average(res))
-
-# # calibrated parameters!
-# calibrated_a = res.x[0]
-# calibrated_sigmas = res.x[1:]
-
-# print("Calibrated a:", calibrated_a)
-# print("Calibrated sigmas (1y..30y):", calibrated_sigmas)
-# print("Residual norm:", np.linalg.norm(res.fun))
+    return residuals_array
 
 
+theta0 = [0.01000, 0.003000] # initial guess!
 
-# Iteration: 204   Current a: 0.006043526639966153         Current sigmas: [0.00305608 0.00902169 0.01120199 0.01938874 0.00418704 0.01998177
-#  0.01770805 0.01788907 0.01594628 0.0163813  0.00763923 0.01805914]
+# TRF (with very forgiving bounds...)
+lower_bounds = [1e-16,1e-16]
+upper_bounds = [1, 1]
+res = least_squares(residuals, theta0, args=(df,), method='trf',
+                    bounds=(lower_bounds, upper_bounds))
+
+
+# calibrated parameters!
+calibrated_a = res.x[0]
+calibrated_sigmas = res.x[1:]
+
+print("Calibrated a:", calibrated_a)
+print("Calibrated sigmas (1y..30y):", calibrated_sigmas)
+print("Residual norm:", np.linalg.norm(res.fun))

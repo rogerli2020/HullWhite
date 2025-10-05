@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from nelson_siegel_svensson import NelsonSiegelCurve
+import numpy as np
 
 class ZeroRateCurve(ABC):
     @abstractmethod
@@ -67,8 +69,23 @@ class ExampleLinearlyInterpolatedZeroRateCurve(ExampleStepwiseZeroRateCurve):
 
 
 
-class NielsonSiegelSvenssonCurve(ZeroRateCurve):
-    ...
+class ExampleNSSCurve(ZeroRateCurve):
+    def __init__(self):
+        super().__init__()
+        self.curve = NelsonSiegelCurve(
+            beta0=np.float64(3.7900155612552484), 
+            beta1=np.float64(-1.6830042944411336), 
+            beta2=np.float64(-2.4710794624907764), 
+            tau=np.float64(2.6918411694018105)
+        )
+        self._cache = {}
+
+    def get_zero_rate(self, t):
+        if t in self._cache:
+            return self._cache[t]
+        res = self.curve(t)
+        self._cache[t] = res
+        return res
 
 class LinearZeroRateCurve(ZeroRateCurve):
     def __init__(self, r0: float = 0, r30: float = 0.05, max_t: float = 30):
