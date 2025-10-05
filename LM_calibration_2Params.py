@@ -56,11 +56,11 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 ITER_COUNT = 0
-PREV_MSE = 0.0
+PREV_MAE = 0.0
 
-def residuals(theta, dataframe, timestep=0.4, max_workers=12):
+def residuals(theta, dataframe, timestep=0.5, max_workers=12):
     global ITER_COUNT
-    global PREV_MSE
+    global PREV_MAE
     ITER_COUNT += 1
 
     a = theta[0]
@@ -68,7 +68,7 @@ def residuals(theta, dataframe, timestep=0.4, max_workers=12):
 
     log_str = f"Iteration: {ITER_COUNT}\t Current a: {a:.6f}\t Current sigma: {sigma:.6f}"
     print(log_str)
-    with open("./log.txt", "a") as f:
+    with open("./log_2p.txt", "a") as f:
         f.write("\n" + log_str)
 
     # initialize model
@@ -98,24 +98,27 @@ def residuals(theta, dataframe, timestep=0.4, max_workers=12):
     residuals_array = np.array(prices) - market_prices
 
     # log and print!
-    MSE = np.mean(residuals_array ** 2)
-    MSE_change = MSE - PREV_MSE
-    PREV_MSE = MSE
+    MAE = np.mean(np.abs(residuals_array))
+    MAE_change = MAE - PREV_MAE
+    PREV_MAE = MAE
 
-    print(f"\tCurrent MSE: {MSE:.8f}")
-    print(f"\tChange in MSE: {MSE_change:.8f}")
-    with open("./log.txt", "a") as f:
-        f.write(f"\n\tCurrent MSE: {MSE:.8f}")
-        f.write(f"\n\tChange in MSE: {MSE_change:.8f}")
+    print(f"\tCurrent MAE: {MAE:.8f}")
+    print(f"\tChange in MAE: {MAE:.8f}")
+    with open("./log_2p.txt", "a") as f:
+        f.write(f"\n\tCurrent MAE: {MAE:.8f}")
+        f.write(f"\n\tChange in MAE: {MAE_change:.8f}")
 
     return residuals_array
 
 
-theta0 = [0.01000, 0.003000] # initial guess!
+theta0 = [0.3, 0.000043] # initial guess!
 
-# TRF (with very forgiving bounds...)
-lower_bounds = [1e-16,1e-16]
-upper_bounds = [1, 1]
+# # LM
+# res = least_squares(residuals, theta0, args=(df,), method='lm')
+
+# TRF
+lower_bounds = [1e-12, 1 * 1e-12]
+upper_bounds = [0.99999, 0.99999]
 res = least_squares(residuals, theta0, args=(df,), method='trf',
                     bounds=(lower_bounds, upper_bounds))
 

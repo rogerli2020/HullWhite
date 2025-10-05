@@ -54,27 +54,25 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
 
 # objective function
 ITER_COUNT = 0
-PREV_MSE = 0.0
-def residuals(theta, dataframe, timestep=0.25, max_workers=12):
+PREV_MAE = 0.0
+def residuals(theta, dataframe, timestep=0.5, max_workers=12):
     global ITER_COUNT
-    global PREV_MSE
+    global PREV_MAE
     ITER_COUNT += 1
+
     a = theta[0]
-    # if a <= 0:
-    #     print("Warning: a is not positive, setting it to 0.0001")
-    #     a = 0.0001
-    # elif a > 1:
-    #     print("a is too large, setting it to 0.9999")
-    #     a = 0.9999
-    sigmas = theta[1:]
-    sigmas_str = f"Iteration: {ITER_COUNT}\t Current a: {a}\t Current sigmas: {sigmas}"
-    print(sigmas_str)
+    sigma = theta[1:]
+
+    log_str = f"Iteration: {ITER_COUNT}\t Current a: {a}\t Current sigma: {sigma}"
+    print(log_str)
     with open("./log.txt", "a") as f:
-        f.write("\n" + sigmas_str)
+        f.write("\n" + log_str)
 
+    # initialize model
     model = OneFactorHullWhiteModel(a)
-    model.set_sigmas_from_vector(sigmas)
+    model.set_sigmas_from_vector(sigma)
 
+    # helper function for price swaption
     def price_row(row):
         swap_start, swap_dur = extract_tenors(row.Description)
         swap_end = swap_start + swap_dur
@@ -82,50 +80,48 @@ def residuals(theta, dataframe, timestep=0.25, max_workers=12):
         swap_end = round(swap_end, 4)
         return price_swaption(model, swap_start, swap_end, timestep)
 
+    # price them all! In parallel!
     prices = [0.0] * len(dataframe)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(price_row, row): i for i, row in enumerate(dataframe.itertuples())}
         for future in as_completed(futures):
             idx = futures[future]
             prices[idx] = future.result()
-    
-    errors = np.array(prices) - dataframe['Quoted_Premium'].values
-    MSE = np.average(errors ** 2)
-    MSE_change = MSE - PREV_MSE
-    PREV_MSE = MSE
-    MSE_str = f"\tCurrent MSE: {MSE}"
-    print(MSE_str)
-    MSE_change_str = f"\tChange in MSE: {MSE_change}"
-    print(MSE_change_str)
+
+    # bps -> unscaled
+    market_prices = dataframe['Quoted_Premium'].values / 10000
+
+    # residuals
+    residuals_array = np.array(prices) - market_prices
+
+    # log and print!
+    MAE = np.mean(np.abs(residuals_array))
+    MAE_CHANGE = MAE - PREV_MAE
+    PREV_MAE = MAE
+
+    print(f"\tCurrent MAE: {MAE:.8f}")
+    print(f"\tChange in MAE: {MAE_CHANGE:.8f}")
     with open("./log.txt", "a") as f:
-        f.write("\n" + MSE_str)
-        f.write("\n" + MSE_change_str)
+        f.write(f"\n\tCurrent MAE: {MAE:.8f}")
+        f.write(f"\n\tChange in MAE: {MAE_CHANGE:.8f}")
 
-    return np.array(prices) - dataframe['Quoted_Premium'].values
+    return residuals_array
 
-# initial guess
-# theta0 = [0.01] + [0.0020, 0.0020, 0.0020, 0.0030, 0.0030, 0.0030, 
-#                                   0.0040,  0.0040, 0.0040, 0.0050, 0.0050, 0.0050]
+# initial values!
+# theta0 = [0.01000] + [0.0020] * 3 + [0.0030] * 3 + [0.0040] * 3 + [0.0050] * 3
+theta0 = [0.333333333333333333333] + [0.0020] * 3 + [0.0030] * 3 + [0.0040] * 3 + [0.0050] * 3
+# theta0 = [0.333333] + [0.000042] * 12
 
-theta0 = [0.015] + [0.0020, 0.0020, 0.0020, 0.0030, 0.0030, 0.0030, 
-                                  0.0040,  0.0040, 0.0040, 0.0050, 0.0050, 0.0050]
-
-# theta0 = [0.001] + [0.0001] * 12
-
-# # Levenberg–Marquardt
-# res = least_squares(residuals, theta0, args=(df,), method='lm')
-
-# TRF
-lower_bounds = [1e-4] + [1e-4]*12  # a >= 0, sigmas > 0
-upper_bounds = [0.075] + [0.01]*12   # set reasonable upper limits, assume normal environment for volatilities
+# TRF (with very forgiving bounds...)
+lower_bounds = [1e-16] + [1e-16]*12
+upper_bounds = [1] + [0.09]*12
 res = least_squares(residuals, theta0, args=(df,), method='trf',
-                    bounds=(lower_bounds, upper_bounds), diff_step=1e-4)
-
+                    bounds=(lower_bounds, upper_bounds), diff_step=1e-6)
 
 # calibrated parameters!
 calibrated_a = res.x[0]
 calibrated_sigmas = res.x[1:]
 
 print("Calibrated a:", calibrated_a)
-print("Calibrated sigmas (1y..30y):", calibrated_sigmas)
+print("Calibrated sigmas:", calibrated_sigmas)
 print("Residual norm:", np.linalg.norm(res.fun))
