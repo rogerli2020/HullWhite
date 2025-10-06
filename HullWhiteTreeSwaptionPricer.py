@@ -28,9 +28,6 @@ class HullWhiteTreeEuropeanSwaptionPricer:
             if t not in tree_ts:
                 return False
         return True
-    
-    def get_fixed_leg_payment_nodes(self, swaption: EuropeanSwaption) -> bool:
-        pass
 
     def price(self, swaption: EuropeanSwaption) -> float:
         if not self._verify_timesteps(swaption):

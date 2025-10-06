@@ -221,6 +221,8 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer = current_child_layer
             current_child_layer = []
 
+        #region CALIBRATE_TO_ZERO_CURVE
+
         # Step 4: Adjusting the Tree to match ZCB yields
         # formula taken from https://www.math.hkust.edu.hk/~maykwok/courses/MAFS525/Topic4_4.pdf
         Q_lookup = {(0, 0): 1.0}    # Present value at root
@@ -256,9 +258,6 @@ class OneFactorHullWhiteTrinomialTree:
                 for j in next_layer_attr.js:
                     Q_lookup[(m_plus_1, j)] = 0
                     for k in current_layer.js:
-                        # print(current_layer.layer_id)
-                        # print(current_layer.num_nodes)
-                        # print(self._node_lookup)
                         Q_lookup[(m_plus_1, j)] += (
                                 Q_lookup[(m, k)] 
                                 * qkj(m, k, j)
@@ -282,6 +281,8 @@ class OneFactorHullWhiteTrinomialTree:
         while current_layer is not None:
             self.t_to_layer[current_layer.t] = current_layer
             current_layer = current_layer.next_layer_attr
+            
+        #endregion
 
         if verbose:
             print("Tree built successfully.")
