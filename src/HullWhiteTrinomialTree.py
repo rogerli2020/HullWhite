@@ -166,7 +166,6 @@ class OneFactorHullWhiteTrinomialTree:
 
             # iterate through parent layer
             for parent in current_parent_layer:
-                # just for graphing/visualization
                 parent.layer_attr.child_delta_t = delta_t
 
                 # deterministic mean reverting drift
@@ -221,7 +220,7 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer = current_child_layer
             current_child_layer = []
 
-        #region CALIBRATE_TO_ZERO_CURVE
+        #region Calibrate to Zero Curve
 
         # Step 4: Adjusting the Tree to match ZCB yields
         # formula taken from https://www.math.hkust.edu.hk/~maykwok/courses/MAFS525/Topic4_4.pdf
@@ -298,7 +297,7 @@ class OneFactorHullWhiteTrinomialTree:
             nodes.append(self.node_lookup(layer.layer_id, j))
         return nodes
     
-    #region visualize_tree
+    #region Visualization
     def visualize_tree(self):
         """
         ChatGPT: visualization of the Hull-White trinomial tree (no labels, batched drawing).

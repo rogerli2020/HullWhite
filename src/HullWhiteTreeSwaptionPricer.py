@@ -40,7 +40,7 @@ class HullWhiteTreeEuropeanSwaptionPricer:
         option_premium_at_expiry_nodes: dict = {}
         for node in self.tree.get_nodes_at_layer(expiry_layer):
             # floating leg (approximation!!)
-            floating_leg = 1.0 - zcb_prices[ (expiry_layer.layer_id, node.j) ]
+            floating_leg = ...
 
             # fixed leg
             fixed_leg = 0.0
