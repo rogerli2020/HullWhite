@@ -46,7 +46,7 @@ class HullWhiteTreeUtil:
         while cur_layer is not None:
             if stop:
                 break
-            stop = last_layer
+            stop = cur_layer == last_layer
             delta_t: float = cur_layer.child_delta_t
             for node in tree.get_nodes_at_layer(cur_layer):
                 cur_short_rate = node.value
@@ -54,9 +54,9 @@ class HullWhiteTreeUtil:
                 for i in range(0, 3):
                     child_node: Node = node.children[i]
                     child_prob = node.children_prob[i]
-                    child_price = zcb_dict[ (child_node.layer_attr.layer_id, child_node.j) ]
+                    child_price = zcb_dict[child_node]
                     expected_zcb_price += child_price * child_prob * np.exp(-delta_t*cur_short_rate)
-                zcb_dict[ (cur_layer.layer_id, node.j) ] = expected_zcb_price
+                zcb_dict[node] = expected_zcb_price
             cur_layer = cur_layer.prev_layer_attr
         
         return zcb_dict

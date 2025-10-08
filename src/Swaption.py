@@ -1,5 +1,8 @@
 from enum import Enum
 from src.ZeroRateCurve import ZeroRateCurve
+from src.HullWhite import OneFactorHullWhiteModel
+from src.HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
+from src.ZeroRateCurve import ZeroRateCurve
 from src.HullWhiteTreeUtil import round_list_floats
 import numpy as np
 
@@ -9,17 +12,18 @@ class SwaptionType(Enum):
 
 class EuropeanSwaption:
     def __init__(self, swaption_type: SwaptionType,
-                 expiry: float, swap_start: float, swap_end: float,
-                 payment_frequency: float, notional: float, strike: float, 
-                 fixed: float) -> None:
+                 swap_start: float, swap_end: float, expiry: float=None,
+                 payment_frequency: float=0.5, notional: float=1, strike: float=0.0, 
+                 fixed: float=0.0) -> None:
         self.swaption_type = swaption_type
-        self.expiry = expiry
         self.swap_start = swap_start
         self.swap_end = swap_end
         self.payment_frequency = payment_frequency
         self.notional = notional
         self.strike = strike
         self.fixed = fixed
+        if expiry is None:
+            expiry = self.swap_start
     
     def set_ATM_strike_fixed_rate_and_strike(self, zcb_curve: ZeroRateCurve):
         self.strike = self.get_par_rate(zcb_curve)
@@ -63,3 +67,17 @@ class EuropeanSwaption:
         par_rate_denominator = np.sum(zcb_prices)
         
         return par_rate_numerator / par_rate_denominator
+    
+    def build_valuation_tree(self, zcb_curve: ZeroRateCurve, set_ATM_strike: bool, 
+                              model: OneFactorHullWhiteModel, timestep: float=None, 
+                              verbose: bool=False) -> OneFactorHullWhiteTrinomialTree:
+        timestep = self.payment_frequency if timestep is None else timestep
+        if set_ATM_strike:
+            self.set_ATM_strike_fixed_rate_and_strike(zcb_curve)
+        tree = OneFactorHullWhiteTrinomialTree(model, self.get_valuation_times(), 
+                                               zcb_curve, timestep, desc=self.__repr__())
+        tree.build_tree(verbose=verbose)
+        return tree
+    
+    def __repr__(self):
+        return f"European Swaption {self.swap_start}Y{self.swap_end}Y"

@@ -1,8 +1,7 @@
 from src.HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree, Node
-from src.Swaption import EuropeanSwaption
+from src.Swaption import EuropeanSwaption, SwaptionType
 from src.HullWhiteTreeUtil import HullWhiteTreeUtil
 import numpy as np
-from collections import defaultdict
 
 class HullWhiteTreeEuropeanSwaptionPricer:
     """
@@ -23,27 +22,27 @@ class HullWhiteTreeEuropeanSwaptionPricer:
         return True
     
     @staticmethod
-    def price_in_bps(tree: OneFactorHullWhiteTrinomialTree, swaption: EuropeanSwaption) -> float:
+    def price_in_bps(swaption: EuropeanSwaption, tree: OneFactorHullWhiteTrinomialTree) -> float:
         """
         Price a European swaption using the Hull-White tree and return the premium in basis points.
         """
-        return HullWhiteTreeEuropeanSwaptionPricer.price(tree, swaption) * 1e4
+        return HullWhiteTreeEuropeanSwaptionPricer.price(swaption, tree) * 1e4
 
     @staticmethod
-    def price(tree: OneFactorHullWhiteTrinomialTree, swaption: EuropeanSwaption):
+    def price(swaption: EuropeanSwaption, tree: OneFactorHullWhiteTrinomialTree) -> float:
         """
         Price a European swaption using the Hull-White tree.
         """
 
         # verify tree compatibility
-        if not HullWhiteTreeEuropeanSwaptionPricer._verify_timesteps(swaption):
+        if not HullWhiteTreeEuropeanSwaptionPricer._verify_timesteps(tree, swaption):
             raise Exception("Swap cashflows are misaligned with the tree time steps.")
 
         # get necessary data
-        expiry_layer = HullWhiteTreeEuropeanSwaptionPricer.tree.t_to_layer[swaption.swap_start]
+        expiry_layer = tree.t_to_layer[swaption.swap_start]
         expiry_nodes: list[Node] = tree.get_nodes_at_layer(expiry_layer)
         fixed_leg_payment_times: list[float] = swaption.get_fixed_leg_payment_times()
-        t0: float = expiry_layer.t  # option expiry time
+        t0: float = expiry_layer.t # option expiry time
         n_nodes: int = len(expiry_nodes)
 
         fixed_leg_values_sum        = np.zeros(n_nodes)
@@ -77,9 +76,9 @@ class HullWhiteTreeEuropeanSwaptionPricer:
 
         # calculate option payoffs
         expiry_node_option_values: np.array
-        if swaption.swaption_type == "PAYER":
+        if swaption.swaption_type == SwaptionType.PAYER:
             expiry_node_option_values = np.maximum(payer_swap_values, 0.0)
-        elif swaption.swaption_type == "RECEIVER":
+        elif swaption.swaption_type == SwaptionType.RECEIVER:
             expiry_node_option_values = np.maximum(-payer_swap_values, 0.0)
         else:
             raise Exception("Unknown swaption type")
