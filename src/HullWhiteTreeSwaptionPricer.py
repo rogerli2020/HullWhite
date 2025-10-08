@@ -1,26 +1,19 @@
-from src.HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree, Node, LayerAttributesStruct
-from src.Swaption import EuropeanSwaption, SwaptionType
+from src.HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree, Node
+from src.Swaption import EuropeanSwaption
 from src.HullWhiteTreeUtil import HullWhiteTreeUtil
+import numpy as np
+from collections import defaultdict
 
 class HullWhiteTreeEuropeanSwaptionPricer:
     """
     Prices European swaptions using a Hull-White trinomial tree.
-
-    Parameters
-    ----------
-    tree : OneFactorHullWhiteTrinomialTree
-        A pre-built Hull-White trinomial tree.
     """
 
-    def __init__(self, tree: OneFactorHullWhiteTrinomialTree) -> None:
-        if not tree.tree_is_built():
-            raise Exception("Tree must be built before pricing swaptions.")
-        self.tree = tree
-
-    def _verify_timesteps(self, swaption: EuropeanSwaption) -> bool:
+    @staticmethod
+    def _verify_timesteps(tree: OneFactorHullWhiteTrinomialTree, swaption: EuropeanSwaption) -> bool:
         ts = swaption.get_valuation_times()
         tree_ts = set()
-        cur_layer = self.tree.root_node.layer_attr
+        cur_layer = tree.root_node.layer_attr
         while cur_layer is not None:
             tree_ts.add(cur_layer.t)
             cur_layer = cur_layer.next_layer_attr
@@ -29,69 +22,70 @@ class HullWhiteTreeEuropeanSwaptionPricer:
                 return False
         return True
     
-    def price_in_bps(self, swaption: EuropeanSwaption) -> float:
+    @staticmethod
+    def price_in_bps(tree: OneFactorHullWhiteTrinomialTree, swaption: EuropeanSwaption) -> float:
         """
         Price a European swaption using the Hull-White tree and return the premium in basis points.
         """
-        return self.price(swaption) * 10000
+        return HullWhiteTreeEuropeanSwaptionPricer.price(tree, swaption) * 1e4
 
-    def price(self, swaption):
+    @staticmethod
+    def price(tree: OneFactorHullWhiteTrinomialTree, swaption: EuropeanSwaption):
         """
         Price a European swaption using the Hull-White tree.
         """
 
-        if not self._verify_timesteps(swaption):
+        # verify tree compatibility
+        if not HullWhiteTreeEuropeanSwaptionPricer._verify_timesteps(swaption):
             raise Exception("Swap cashflows are misaligned with the tree time steps.")
 
-        # 2️⃣ Identify expiry layer
-        expiry_layer = self.tree.t_to_layer[swaption.swap_start]
-        delta_t = expiry_layer.child_delta_t
+        # get necessary data
+        expiry_layer = HullWhiteTreeEuropeanSwaptionPricer.tree.t_to_layer[swaption.swap_start]
+        expiry_nodes: list[Node] = tree.get_nodes_at_layer(expiry_layer)
+        fixed_leg_payment_times: list[float] = swaption.get_fixed_leg_payment_times()
+        t0: float = expiry_layer.t  # option expiry time
+        n_nodes: int = len(expiry_nodes)
 
-        # 3️⃣ Compute ZCB prices at relevant nodes (helper function assumed)
-        zcb_prices = HullWhiteTreeUtil.get_zcb_price_dict(
-            self.tree, swaption.swap_start, swaption.swap_end
-        )
+        fixed_leg_values_sum        = np.zeros(n_nodes)
+        swap_end_zcb_values         = np.zeros(n_nodes)
+        swap_end_zcb_values_checker = False
+        for T in fixed_leg_payment_times:
+            # first, get the ZCB prices of future payment
+            # get_zcb_price_dict() call is expensive!!!
+            zcb_price_dict = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, T)
+            zcb_prices = np.array([zcb_price_dict[node] for node in expiry_nodes])
 
-        # 4️⃣ Initialize swaption payoff at expiry nodes
-        for node in self.tree.get_nodes_at_layer(expiry_layer):
+            # fixed leg values
+            fixed_leg_values_sum += zcb_prices
+            
+            # if at swap end time, start calculating floating leg value (approximation)
+            if T == swaption.swap_end:
+                swap_end_zcb_values = zcb_prices.copy()
+                swap_end_zcb_values_checker = True
+        
+        # if somehow didn't reach T=swap_end, do it now
+        if not swap_end_zcb_values_checker:
+            zcb_price_dict = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, swaption.swap_end)
+            zcb_prices = np.array([zcb_price_dict[node] for node in expiry_nodes])
+            swap_end_zcb_values = zcb_prices.copy()
+            swap_end_zcb_values_checker = True
+        
+        # calculations...
+        fixed_leg_values    = fixed_leg_values_sum * swaption.fixed
+        floating_leg_values = 1.0 - swap_end_zcb_values
+        payer_swap_values   = fixed_leg_values - floating_leg_values
 
-            # ---- Floating leg (par approximation) ----
-            floating_leg = 1.0 - HullWhiteTreeUtil.get_node_specific_zcb_price(
-                self.tree, node, swaption.swap_end
-            )
+        # calculate option payoffs
+        expiry_node_option_values: np.array
+        if swaption.swaption_type == "PAYER":
+            expiry_node_option_values = np.maximum(payer_swap_values, 0.0)
+        elif swaption.swaption_type == "RECEIVER":
+            expiry_node_option_values = np.maximum(-payer_swap_values, 0.0)
+        else:
+            raise Exception("Unknown swaption type")
+        
+        # Q is respective to valuation time (current time)
+        expiry_Qs = np.array([node.Q for node in expiry_nodes])
 
-            # ---- Fixed leg ----
-            fixed_leg = 0.0
-            for T in swaption.get_fixed_leg_payment_times():
-                P_T = HullWhiteTreeUtil.get_node_specific_zcb_price(self.tree, node, T)
-                fixed_leg += P_T  # assuming tau = 1
-            fixed_leg *= swaption.fixed
-
-            # ---- Option payoff ----
-            swap_pv = floating_leg - fixed_leg
-            if swaption.swaption_type == "PAYER":
-                node.swaption_value = max(swap_pv, 0.0)
-            elif swaption.swaption_type == "RECEIVER":
-                node.swaption_value = max(-swap_pv, 0.0)
-            else:
-                raise Exception("Unknown swaption type")
-
-        # 5️⃣ Backward induction to root
-        cur_layer = expiry_layer
-        while cur_layer != self.tree.root_node.layer_attr:
-            prev_layer = cur_layer.previous_layer_attr
-            dt = prev_layer.child_delta_t  # time step to next layer
-
-            for parent_node in self.tree.get_nodes_at_layer(prev_layer):
-                # Compute expected discounted value from children
-                child_values = np.array([child.swaption_value for child in parent_node.children])
-                child_Qs = np.array([child.Q for child in parent_node.children])
-                r_parent = parent_node.value
-
-                # discounted expectation
-                parent_node.swaption_value = np.sum(child_Qs * np.exp(-r_parent * dt) * child_values)
-
-            cur_layer = prev_layer
-
-        # 6️⃣ Return value at root
-        return self.tree.root_node.swaption_value
+        # return dot product
+        return np.dot(expiry_Qs, expiry_node_option_values)

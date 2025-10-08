@@ -49,12 +49,17 @@ class EuropeanSwaption:
         return valuation_times
 
     def get_par_rate(self, zcb_curve: ZeroRateCurve):
-        # calculates the par rate using the par rate formula........
+        """
+        Calculates the swap par rate using the par rate formula
+        """
+        par_rate_denominator: float
+        par_rate_numerator: float
+
         par_rate_numerator = ( np.exp(-zcb_curve.get_zero_rate(t=self.swap_start)*self.swap_start)
                               - np.exp(-zcb_curve.get_zero_rate(t=self.swap_end)*self.swap_end))
-        par_rate_denominator = 0
-        # assume fixed leg is paid annually... just to keep things simple!
-        for t in self.get_fixed_leg_payment_times():
-            par_rate_denominator += np.exp(-zcb_curve.get_zero_rate(t)*t)
+
+        zcb_prices = np.array([-zcb_curve.get_zero_rate(t)*t for t in self.get_fixed_leg_payment_times()])
+        zcb_prices = np.exp(zcb_prices)
+        par_rate_denominator = np.sum(zcb_prices)
         
         return par_rate_numerator / par_rate_denominator

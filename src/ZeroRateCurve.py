@@ -46,6 +46,8 @@ class ExampleStepwiseZeroRateCurve(ZeroRateCurve):
                 return cur_rate
         return self.curve[-1][1]
     
+    
+    
 
 
 class ExampleLinearlyInterpolatedZeroRateCurve(ExampleStepwiseZeroRateCurve):
