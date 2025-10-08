@@ -105,3 +105,29 @@ class HullWhiteTreeUtil:
         t0: float = node.layer_attr.t
         zcb_dict = HullWhiteTreeUtil.get_zcb_price_dict(tree, t0, T)
         return zcb_dict[ (node.layer_attr.layer_id, node.j) ]
+    
+    @staticmethod
+    def calculate_state_prices(tree: OneFactorHullWhiteTrinomialTree, root_node: Node, 
+                               terminal_layer: LayerAttributesStruct=None, inplace: bool=False):
+
+        # Equation (5): Qij = SUM over k of p(i,j|i-1,k) * exp(-ri-1k * (ti - ti-1)) * Qi-1k
+        Q_dict = {}
+        cur_layer = root_node.layer_attr.next_layer_attr
+        cur_delta_t = root_node.layer_attr.child_delta_t
+        while cur_layer:
+            for j in cur_layer.js:
+                node_ij = tree.node_lookup(cur_layer.layer_id, j)
+                Q_ij = 0.0
+                for parent_node, cond_prob in node_ij.parents_to_conditional_prob.items():
+                    r_parent = parent_node.value
+                    Q_ij += cond_prob * np.exp(-r_parent * cur_delta_t) * parent_node.Q
+                if inplace:
+                    node_ij.Q = Q_ij
+                else:
+                    Q_dict[(cur_layer.layer_id, j)] = Q_ij
+            if cur_layer is terminal_layer:
+                break
+            cur_delta_t = cur_layer.child_delta_t
+            cur_layer = cur_layer.next_layer_attr
+        
+        return Q_dict

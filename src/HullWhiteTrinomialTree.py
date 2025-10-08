@@ -21,19 +21,30 @@ class LayerAttributesStruct:
 
 
 class Node:
-    def __init__(self, value: float, prob: float, 
-                 j: int, layer_attr: LayerAttributesStruct, parent: "Node") -> None:
+    def __init__(self, value: float,
+                 j: int, layer_attr: LayerAttributesStruct) -> None:
         self.value : float = value
-        self.prob : float = prob
         self.j : int = j
         self.children : list = []
         self.children_prob : list[float] = []
-        self.parent : "Node" = parent
         self.layer_attr = layer_attr
         self.Q : float = -1
 
         layer_attr.num_nodes += 1
         layer_attr.js.append(self.j)
+
+        # for calculation purposes
+        self.parents_to_conditional_prob : dict[Node, float] = {}
+
+        self.index: tuple[int, int] = (layer_attr.layer_id, j)
+    
+    # for easy lookup
+    def __eq__(self, other):
+        return isinstance(other, Node) and self.index == other.index
+    def __hash__(self):
+        return hash(self.index)
+    def __repr__(self):
+        return f"Node({self.index}, {self.value})"
 
 class OneFactorHullWhiteTrinomialTree:
     """
@@ -58,20 +69,23 @@ class OneFactorHullWhiteTrinomialTree:
     tree_is_built()
         Returns True if tree is built, False otherwise.
     """
-    def __init__(self, model : OneFactorHullWhiteModel, payment_times : list[float], zcb_curve : ZeroRateCurve, timestep : float) -> None:
+    def __init__(self, model: OneFactorHullWhiteModel, payment_times: list[float], 
+                 zcb_curve: ZeroRateCurve, timestep: float, desc: str="") -> None:
         self.model : OneFactorHullWhiteModel = model
         self.payment_times : list[float] = payment_times
         self.zcb_curve : ZeroRateCurve = zcb_curve
         self.timestep : float = timestep
+        self.desc : str = desc
         self.root_node : Node = None
         
         self.t_to_layer : dict[float, LayerAttributesStruct] = {}
         self._node_lookup : dict[tuple, Node] = {}
         self._build_timesteps()
 
-        # sanity checks
-        assert len(self.payment_times) >= 2, "At least two payment times are required."
-        assert all(t2 > t1 for t1, t2 in zip(self.payment_times, self.payment_times[1:])), "Payment times must be in ascending order."
+        if not len(self.payment_times) >= 2:
+            raise Exception("At least two payment times are required.")
+        if not all(t2 > t1 for t1, t2 in zip(self.payment_times, self.payment_times[1:])):
+            raise Exception("Payment times must be in ascending order.")
     
     def _build_timesteps(self):
         if not self.payment_times:
@@ -105,18 +119,10 @@ class OneFactorHullWhiteTrinomialTree:
         """
         return self.root_node is not None
 
-    def build_tree(self, verbose=True):
+    def build_tree(self, verbose=False):
         """
         Builds the tree based on the given model and payment times.
         """
-        def qkj(m : int, k : int, j : int) -> float:
-            if (m+1, j) not in self._node_lookup:
-                return 0
-            target_node = self._node_lookup[ (m+1, j) ]
-            for key, val in enumerate(self._node_lookup[ (m, k) ].children):
-                if val == target_node:
-                    return self._node_lookup[ (m, k) ].children_prob[key]
-            return 0
     
         if verbose:
             print("Building tree...")
@@ -124,7 +130,8 @@ class OneFactorHullWhiteTrinomialTree:
         # start by initiating the first node on the valuation date. Root node variance is zero.
         parent_layer_date = self.payment_times[0]
         root_layer_attr = LayerAttributesStruct(0, 0, self.payment_times[1])
-        root_node = Node(0, 1, 0, root_layer_attr, None)
+        self.t_to_layer[parent_layer_date] = root_layer_attr
+        root_node = Node(0, 0, root_layer_attr)
         self._node_lookup[(0, 0)] = root_node
         self.root_node = root_node
         current_parent_layer : list[Node] = [root_node]
@@ -152,6 +159,7 @@ class OneFactorHullWhiteTrinomialTree:
                 prev_layer_attr=current_parent_layer[0].layer_attr
             )
             current_parent_layer[0].layer_attr.next_layer_attr = child_layer_attr
+            self.t_to_layer[child_layer_date] = child_layer_attr
 
             # compute delta x for the child layer
             delta_x : float = self.model.sigma(parent_layer_date) * np.sqrt(3 * delta_t)       # Equation (2)
@@ -191,28 +199,32 @@ class OneFactorHullWhiteTrinomialTree:
 
                 # recombine
                 for val_c, j_c, prob_c in zip(children_values, children_j, probs):
-                    existing_node = None
-                    for n in current_child_layer:
-                        if n.j == j_c:
-                            existing_node = n
-                            break
-                    if existing_node:
-                        parent.children.append(existing_node)
-                        parent.children_prob.append(prob_c)
-                    else:
-                        node = Node(value=val_c, j=j_c, prob=parent.prob * prob_c, 
-                                    layer_attr=child_layer_attr, parent=parent)
-                        self._node_lookup[ (child_layer_attr.layer_id, node.j) ] = node
-                        current_child_layer.append(node)
-                        parent.children.append(node)
-                        parent.children_prob.append(prob_c)
+
+                    # in this loop, get or create the child node
+                    child_node: Node
+
+                    # if child with j already exists...
+                    node_exists, child_node = self.node_lookup_safe(child_layer_attr.layer_id, j_c)
+
+                    # else create a new child node and add to lookup
+                    if not node_exists:
+                        child_node = Node(value=val_c, j=j_c, 
+                                    layer_attr=child_layer_attr)
+                        current_child_layer.append(child_node)
+                        self._node_lookup[(child_layer_attr.layer_id, j_c)] = child_node
+
+                    # link parent and child
+                    parent.children.append(child_node)
+                    parent.children_prob.append(prob_c)
+                    child_node.parents_to_conditional_prob[parent] = prob_c
             
             # simple print statement
             if verbose:
                 print(
-                    f"Constructed layer {child_layer_attr.layer_id} "
-                    f"for t={child_layer_attr.t}. "
-                    f"Number of nodes: {child_layer_attr.num_nodes}."
+                    f"Tree {self.desc}\t"
+                    f"Constructed layer {child_layer_attr.layer_id}\t"
+                    f"for t={child_layer_attr.t}.\t"
+                    f"Number of nodes: {child_layer_attr.num_nodes}.\t"
                 )
 
             # prepare for new iteration
@@ -220,82 +232,63 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer = current_child_layer
             current_child_layer = []
 
-        #region Calibrate to Zero Curve
+        #region Adjusting the Tree to match ZCB yields
 
-        # Step 4: Adjusting the Tree to match ZCB yields
-        # formula taken from https://www.math.hkust.edu.hk/~maykwok/courses/MAFS525/Topic4_4.pdf
-        Q_lookup = {(0, 0): 1.0}    # Present value at root
-        alpha_lookup = {}           # Store alpha_m for each layer
+        # ============================
+        # calculate state prices
+        # ============================
+        self.calculate_state_prices(self.root_node, terminal_layer=None, inplace=True)
 
-        current_layer = self.root_node.layer_attr
-        if verbose:
-            print("Calibrating the tree to zero curve...")
 
-        while current_layer is not None:
-            m = current_layer.layer_id
-            delta_R = current_layer.delta_x
-            delta_t = current_layer.child_delta_t
 
-            # Step 1: Calculate alpha_m to match ZCB (Formula on Slide 28)
-            alpha_m = np.log(
-                sum(
-                    [
-                        Q_lookup[(m, j)] * np.exp(-1*j*delta_R*delta_t)
-                        for j in current_layer.js
-                    ]
-                )
-            )
 
-            p_m_plus_1 = np.exp(-1 * self.zcb_curve.get_zero_rate(current_layer.t+delta_t)*(current_layer.t+delta_t))            
-            alpha_m = (alpha_m - np.log(p_m_plus_1)) / current_layer.child_delta_t
-            alpha_lookup[m] = alpha_m
-
-            # Step 2: Compute state prices for the next layer (Formula on Slide 28)
-            if current_layer.next_layer_attr is not None:
-                next_layer_attr = current_layer.next_layer_attr
-                m_plus_1 = next_layer_attr.layer_id
-                for j in next_layer_attr.js:
-                    Q_lookup[(m_plus_1, j)] = 0
-                    for k in current_layer.js:
-                        Q_lookup[(m_plus_1, j)] += (
-                                Q_lookup[(m, k)] 
-                                * qkj(m, k, j)
-                                * np.exp(-(alpha_m+k*delta_R)*delta_t)
-                            )
-            
-            current_layer = current_layer.next_layer_attr
-
-        # Step 3: Adjust all node values using alpha_m
-        current_layer = self.root_node.layer_attr
-        while current_layer is not None:
-            m = current_layer.layer_id
-            alpha = alpha_lookup[m]
-            for j in current_layer.js:
-                self._node_lookup[(m, j)].value += alpha
-                self._node_lookup[(m, j)].Q = Q_lookup[(m, j)]
-            current_layer = current_layer.next_layer_attr
-        
-        # bookkeeping: store layer attributes by time
-        current_layer = self.root_node.layer_attr
-        while current_layer is not None:
-            self.t_to_layer[current_layer.t] = current_layer
-            current_layer = current_layer.next_layer_attr
-            
         #endregion
 
         if verbose:
-            print("Tree built successfully.")
+            print(f"Tree {self.desc} built successfully.")
     
     def node_lookup(self, m: int, j: int) -> Node:
         if (m, j) not in self._node_lookup:
             raise Exception(f"No node found at ({m}, {j}).")
         return self._node_lookup[(m, j)]
+    
+    def node_lookup_safe(self, m: int, j: int) -> tuple:
+        if (m, j) not in self._node_lookup:
+            return False, None
+        return True, self._node_lookup[(m, j)]
 
     def get_nodes_at_layer(self, layer: LayerAttributesStruct) -> list[Node]:
         nodes = []
         for j in layer.js:
             nodes.append(self.node_lookup(layer.layer_id, j))
         return nodes
+
+    def calculate_state_prices(self, root_node: Node, 
+                               terminal_layer: LayerAttributesStruct=None, inplace: bool=False):
+        # Equation (5): Qij = SUM over k of p(i,j|i-1,k) * exp(-ri-1k * (ti - ti-1)) * Qi-1k
+        Q_dict = {}
+        Q_dict[(root_node.layer_attr.layer_id, root_node.j)] = 1.0
+        if inplace:
+            root_node.Q = 1.0
+        cur_layer = root_node.layer_attr.next_layer_attr
+        cur_delta_t = root_node.layer_attr.child_delta_t
+        while cur_layer:
+            for j in cur_layer.js:
+                node_ij = self.node_lookup(cur_layer.layer_id, j)
+                Q_ij = 0.0
+                for parent_node, cond_prob in node_ij.parents_to_conditional_prob.items():
+                    r_parent = parent_node.value
+                    Q_ij += cond_prob * np.exp(-r_parent * cur_delta_t) * parent_node.Q
+                if inplace:
+                    node_ij.Q = Q_ij
+                else:
+                    Q_dict[(cur_layer.layer_id, j)] = Q_ij
+            if cur_layer is terminal_layer:
+                break
+            cur_delta_t = cur_layer.child_delta_t
+            cur_layer = cur_layer.next_layer_attr
+        
+        return Q_dict
     
     #region Visualization
     def visualize_tree(self):
