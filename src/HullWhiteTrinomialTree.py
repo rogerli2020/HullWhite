@@ -5,8 +5,10 @@ from matplotlib.collections import LineCollection
 from dataclasses import dataclass
 from ZeroRateCurve import ZeroRateCurve
 from dataclasses import dataclass, field
+from scipy.special import logsumexp
 
 EPSILON = 1e-5
+
 
 @dataclass
 class LayerAttributesStruct:
@@ -70,7 +72,7 @@ class OneFactorHullWhiteTrinomialTree:
         Returns True if tree is built, False otherwise.
     """
     def __init__(self, model: OneFactorHullWhiteModel, payment_times: list[float], 
-                 zcb_curve: ZeroRateCurve, timestep: float, desc: str="") -> None:
+                 zcb_curve: ZeroRateCurve, timestep: float, desc: str="unnamed") -> None:
         self.model : OneFactorHullWhiteModel = model
         self.payment_times : list[float] = payment_times
         self.zcb_curve : ZeroRateCurve = zcb_curve
@@ -232,15 +234,51 @@ class OneFactorHullWhiteTrinomialTree:
             current_parent_layer = current_child_layer
             current_child_layer = []
 
-        #region Adjusting the Tree to match ZCB yields
 
-        # ============================
-        # calculate state prices
-        # ============================
-        self.calculate_state_prices(self.root_node, terminal_layer=None, inplace=True)
+        #region Adjusting the Tree to Match ZCB yields
 
+        if verbose:
+            print(f"Adjusting tree {self.desc} to match ZCB yields...")
 
+        self.root_node.Q = 1.0
 
+        # formulas from https://www.math.hkust.edu.hk/~maykwok/courses/MAFS525/Topic4_4.pdf
+        cur_layer = self.root_node.layer_attr
+        while cur_layer is not None:
+            delta_t = cur_layer.child_delta_t
+
+            # compute ln_actual_zcb_price
+            ln_actual_zcb_price = (-self.zcb_curve.get_zero_rate(cur_layer.t + delta_t) 
+                                   * (cur_layer.t + delta_t))
+
+            # log-sum-exp for adjustment
+            nodes = self.get_nodes_at_layer(cur_layer)
+            Q = np.array([node.Q for node in nodes])
+            values = np.array([node.value for node in nodes])
+            a = np.log(Q) - values * delta_t
+            log_sum = logsumexp(a)
+            adjustment = (log_sum - ln_actual_zcb_price) / delta_t
+
+            # update node values
+            for node in nodes:
+                node.value += adjustment
+
+            # update child node Qs
+            if cur_layer.next_layer_attr:
+                for child_node in self.get_nodes_at_layer(cur_layer.next_layer_attr):
+                    parents = list(child_node.parents_to_conditional_prob.keys())
+                    cond_probs = np.array([child_node.parents_to_conditional_prob[p] for p in parents])
+                    parent_values = np.array([p.value for p in parents])
+                    parent_Q = np.array([p.Q for p in parents])
+
+                    a = np.log(cond_probs) + np.log(parent_Q) - parent_values * delta_t
+                    child_node.Q = np.exp(logsumexp(a))
+
+            # move to next layer
+            cur_layer = cur_layer.next_layer_attr
+
+        if verbose:
+            print(f"Tree {self.desc} adjusted to ZCB curve.")
 
         #endregion
 

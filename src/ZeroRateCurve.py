@@ -82,7 +82,7 @@ class ExampleNSSCurve(ZeroRateCurve):
 
     @lru_cache(maxsize=None)
     def get_zero_rate(self, t):
-        return self.curve(t)
+        return self.curve(t) * 1e-2
 
 class LinearZeroRateCurve(ZeroRateCurve):
     def __init__(self, r0: float = 0, r30: float = 0.05, max_t: float = 30):
