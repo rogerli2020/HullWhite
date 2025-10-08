@@ -1,13 +1,16 @@
+from src.ZeroRateCurve import ExampleNSSCurve
+from src.HullWhite import OneFactorHullWhiteModel
+from src.Swaption import EuropeanSwaption, SwaptionType
+from src.HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
+from src.HullWhiteTreeSwaptionPricer import HullWhiteTreeEuropeanSwaptionPricer
 import pandas as pd
 import re
 import numpy as np
-from ZeroRateCurve import ExampleNSSCurve
-from HullWhite import OneFactorHullWhiteModel
-from Swaption import EuropeanSwaption, SwaptionType
-from HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
-from HullWhiteTreeSwaptionPricer import HullWhiteTreeEuropeanSwaptionPricer
 from scipy.optimize import least_squares
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# use a global ZCB curve
+ZCB_CURVE = ExampleNSSCurve()
 
 # load data
 df = pd.read_csv("./data/swaption_market_quotes.csv")
@@ -33,24 +36,20 @@ def extract_tenors(description):
 
 # function for pricing swaptions using the models
 def price_swaption(hw_model, swap_start, swap_end, timestep):
-    print("Pricing swaption...")
-    zcb_curve = ExampleNSSCurve()
+    global ZCB_CURVE
     swaption = EuropeanSwaption(
         swaption_type=SwaptionType.PAYER,
-        expiry=swap_start,
         swap_start=swap_start,
         swap_end=swap_end,
         payment_frequency=0.5,
-        notional=1,
-        strike=0.0,
-        fixed=0.0,
     )
-    swaption.set_ATM_strike_fixed_rate_and_strike(zcb_curve)
-    tree = OneFactorHullWhiteTrinomialTree(hw_model, swaption.get_valuation_times(), zcb_curve, timestep)
-    tree.build_tree(verbose=True)
-    pricer = HullWhiteTreeEuropeanSwaptionPricer(tree)
-    print("Swaption priced!")
-    return pricer.price(swaption) * 10000  # convert to bps
+    print(f"Pricing {swaption.__repr__()}...")
+    tree = swaption.build_valuation_tree(ZCB_CURVE, set_ATM_strike=True, 
+                                         model=hw_model, timestep=timestep, verbose=True)
+    pricer = HullWhiteTreeEuropeanSwaptionPricer
+    price = HullWhiteTreeEuropeanSwaptionPricer.price_in_bps(swaption, tree)
+    print(f"Swaption {swaption.__repr__()} priced!")
+    return price  # convert to bps
 
 # objective function
 ITER_COUNT = 0
@@ -89,7 +88,7 @@ def residuals(theta, dataframe, timestep=0.5, max_workers=12):
             prices[idx] = future.result()
 
     # bps -> unscaled
-    market_prices = dataframe['Quoted_Premium'].values / 10000
+    market_prices = dataframe['Quoted_Premium'].values
 
     # residuals
     residuals_array = np.array(prices) - market_prices
@@ -107,16 +106,7 @@ def residuals(theta, dataframe, timestep=0.5, max_workers=12):
 
     return residuals_array
 
-# initial values!
-# theta0 = [0.333333333333333333333] + [0.0020] * 3 + [0.0030] * 3 + [0.0040] * 3 + [0.0050] * 3
-
-# Iteration: 21	 Current a: 0.010808312107682148	 Current sigma: [3.96413334e-05 9.59025699e-04 2.91565952e-02 5.81295242e-02
-#  3.69920623e-02 8.99999169e-02 8.45504681e-02 4.00000000e-03
-#  4.00000000e-03 5.00000000e-03 5.00000000e-03 5.00000500e-03]
-# used these as starting points
-theta0 = [0.010808312107682148, 3.96413334e-05, 9.59025699e-04, 2.91565952e-02, 5.81295242e-02,
-          3.69920623e-02, 8.99999169e-02, 8.45504681e-02, 4.00000000e-03,
-          4.00000000e-03, 5.00000000e-03, 5.00000000e-03, 5.00000500e-03]
+theta0 = [0.0030] + [0.02] * 12
 
 # TRF (with very forgiving bounds...)
 lower_bounds = [1e-16] + [1e-16]*12
