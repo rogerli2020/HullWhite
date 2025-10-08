@@ -1,9 +1,9 @@
-from HullWhite import OneFactorHullWhiteModel
+from src.HullWhite import OneFactorHullWhiteModel
+from src.ZeroRateCurve import ZeroRateCurve
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 from dataclasses import dataclass
-from ZeroRateCurve import ZeroRateCurve
 from dataclasses import dataclass, field
 from scipy.special import logsumexp
 
@@ -127,7 +127,7 @@ class OneFactorHullWhiteTrinomialTree:
         """
     
         if verbose:
-            print("Building tree...")
+            print(f"Tree {self.desc}:\tBuilding tree...")
 
         # start by initiating the first node on the valuation date. Root node variance is zero.
         parent_layer_date = self.payment_times[0]
@@ -223,10 +223,10 @@ class OneFactorHullWhiteTrinomialTree:
             # simple print statement
             if verbose:
                 print(
-                    f"Tree {self.desc}\t"
+                    f"Tree {self.desc}:\t"
                     f"Constructed layer {child_layer_attr.layer_id}\t"
-                    f"for t={child_layer_attr.t}.\t"
-                    f"Number of nodes: {child_layer_attr.num_nodes}.\t"
+                    f"for t={child_layer_attr.t}\t"
+                    f"Number of nodes: {child_layer_attr.num_nodes}\t"
                 )
 
             # prepare for new iteration
@@ -238,7 +238,7 @@ class OneFactorHullWhiteTrinomialTree:
         #region Adjusting the Tree to Match ZCB yields
 
         if verbose:
-            print(f"Adjusting tree {self.desc} to match ZCB yields...")
+            print(f"Tree {self.desc}:\tAdjusting to match ZCB yields...")
 
         self.root_node.Q = 1.0
 
@@ -277,13 +277,10 @@ class OneFactorHullWhiteTrinomialTree:
             # move to next layer
             cur_layer = cur_layer.next_layer_attr
 
-        if verbose:
-            print(f"Tree {self.desc} adjusted to ZCB curve.")
-
         #endregion
 
         if verbose:
-            print(f"Tree {self.desc} built successfully.")
+            print(f"Tree {self.desc}:\tTree built successfully.")
     
     def node_lookup(self, m: int, j: int) -> Node:
         if (m, j) not in self._node_lookup:
