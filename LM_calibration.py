@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 ZCB_CURVE = ExampleNSSCurve()
 
 # load data
-df = pd.read_csv("./data/swaption_market_quotes.csv")
+df = pd.read_csv("./data/swaption_quotes_CALIBRATION.csv")
 df = df.dropna()
 df = df[df['Description'].str.contains("EUR Swaption Premium", na=False)]
 
@@ -46,7 +46,6 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
     print(f"Pricing {swaption.__repr__()}...")
     tree = swaption.build_valuation_tree(ZCB_CURVE, set_ATM_strike=True, 
                                          model=hw_model, timestep=timestep, verbose=True)
-    pricer = HullWhiteTreeEuropeanSwaptionPricer
     price = HullWhiteTreeEuropeanSwaptionPricer.price_in_bps(swaption, tree)
     print(f"Swaption {swaption.__repr__()} priced!")
     return price  # convert to bps
@@ -54,7 +53,7 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
 # objective function
 ITER_COUNT = 0
 PREV_MAE = 0.0
-def residuals(theta, dataframe, timestep=0.5, max_workers=12):
+def residuals(theta, dataframe, timestep=0.125, max_workers=12):
     global ITER_COUNT
     global PREV_MAE
     ITER_COUNT += 1
@@ -104,15 +103,23 @@ def residuals(theta, dataframe, timestep=0.5, max_workers=12):
         f.write(f"\n\tCurrent MAE: {MAE:.8f}")
         f.write(f"\n\tChange in MAE: {MAE_CHANGE:.8f}")
 
+    residuals_array = (np.array(prices) - market_prices) / market_prices
     return residuals_array
 
-theta0 = [0.0030] + [0.02] * 12
+# Calibrated a: 0.04306833078825948
+# Calibrated sigmas: [0.00794198 0.01521866 0.01240818 0.02172224 0.014714   0.01666154
+#  0.01499591 0.01400028 0.01388566 0.01224445 0.01122142 0.00899092]
+theta0 = [0.04306833078825948] + [0.00794198, 0.01521866, 0.01240818, 0.02172224, 0.014714, 0.01666154,
+                                 0.01499591, 0.01400028, 0.01388566, 0.01224445, 0.01122142, 0.00899092]
 
-# TRF (with very forgiving bounds...)
-lower_bounds = [1e-16] + [1e-16]*12
-upper_bounds = [1] + [0.09]*12
+# # Levenberg-Marquardt
+# res = least_squares(residuals, theta0, args=(df,), method='lm')
+
+# TRF
+lower_bounds = [1e-12] * 13
+upper_bounds = [0.99999] * 13
 res = least_squares(residuals, theta0, args=(df,), method='trf',
-                    bounds=(lower_bounds, upper_bounds), diff_step=1e-6)
+                    bounds=(lower_bounds, upper_bounds))
 
 # calibrated parameters!
 calibrated_a = res.x[0]
