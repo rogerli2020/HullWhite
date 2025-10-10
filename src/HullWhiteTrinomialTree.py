@@ -179,6 +179,7 @@ class OneFactorHullWhiteTrinomialTree:
                 parent.layer_attr.child_delta_t = delta_t
 
                 # deterministic mean reverting drift
+                # M = - parent.value * self.model.a * delta_t                 # Footnote (3)
                 M = - parent.value * self.model.a * delta_t                 # Footnote (3)
 
                 # expected child value

@@ -106,20 +106,20 @@ def residuals(theta, dataframe, timestep=0.125, max_workers=12):
     residuals_array = (np.array(prices) - market_prices) / market_prices
     return residuals_array
 
-# Calibrated a: 0.04306833078825948
-# Calibrated sigmas: [0.00794198 0.01521866 0.01240818 0.02172224 0.014714   0.01666154
-#  0.01499591 0.01400028 0.01388566 0.01224445 0.01122142 0.00899092]
-theta0 = [0.04306833078825948] + [0.00794198, 0.01521866, 0.01240818, 0.02172224, 0.014714, 0.01666154,
-                                 0.01499591, 0.01400028, 0.01388566, 0.01224445, 0.01122142, 0.00899092]
 
-# # Levenberg-Marquardt
-# res = least_squares(residuals, theta0, args=(df,), method='lm')
+theta0 = [0.02783250833203934] + [
+    0.01116865, 0.01051723, 0.00959414, 0.01144088, 0.01018817, 0.01124504,
+    0.01090442, 0.01113929, 0.01123557, 0.01009081, 0.0099216,  0.00996754
+]
 
-# TRF
-lower_bounds = [1e-12] * 13
-upper_bounds = [0.99999] * 13
-res = least_squares(residuals, theta0, args=(df,), method='trf',
-                    bounds=(lower_bounds, upper_bounds))
+# Levenberg-Marquardt
+res = least_squares(residuals, theta0, args=(df,), method='lm')
+
+# # TRF
+# lower_bounds = [1e-12] * 13
+# upper_bounds = [0.999999999] * 13
+# res = least_squares(residuals, theta0, args=(df,), method='trf',
+#                     bounds=(lower_bounds, upper_bounds))
 
 # calibrated parameters!
 calibrated_a = res.x[0]
