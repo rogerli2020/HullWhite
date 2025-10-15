@@ -106,14 +106,6 @@ class OneFactorHullWhiteTrinomialTree:
             new_times.append(pt)
             last_time = pt
         self.payment_times = sorted(set([0.0] + new_times))
-    
-    def get_total_num_nodes(self) -> int:
-        count = 0
-        cur_layer = self.root_node.layer_attr
-        while cur_layer:
-            count += cur_layer.num_nodes
-            cur_layer = cur_layer.next_layer_attr
-        return count
 
     def tree_is_built(self) -> bool:
         """
@@ -284,16 +276,22 @@ class OneFactorHullWhiteTrinomialTree:
             print(f"Tree {self.desc}:\tTree built successfully.")
     
     def node_lookup(self, m: int, j: int) -> Node:
+        if not self.root_node:
+            raise Exception("root node not found.")
         if (m, j) not in self._node_lookup:
             raise Exception(f"No node found at ({m}, {j}).")
         return self._node_lookup[(m, j)]
     
     def node_lookup_safe(self, m: int, j: int) -> tuple:
+        if not self.root_node:
+            raise Exception("root node not found.")
         if (m, j) not in self._node_lookup:
             return False, None
         return True, self._node_lookup[(m, j)]
 
     def get_nodes_at_layer(self, layer: LayerAttributesStruct) -> list[Node]:
+        if not self.root_node:
+            raise Exception("root node not found.")
         nodes = []
         for j in layer.js:
             nodes.append(self.node_lookup(layer.layer_id, j))
@@ -304,9 +302,8 @@ class OneFactorHullWhiteTrinomialTree:
         """
         ChatGPT: visualization of the Hull-White trinomial tree (no labels, batched drawing).
         """
-        if self.root_node is None:
-            print("Tree is empty. Build the tree first.")
-            return
+        if not self.root_node:
+            raise Exception("root node not found.")
 
         # Collect layers
         layers = []
