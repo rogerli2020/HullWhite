@@ -16,6 +16,7 @@ def round_list_floats(func):
 
 class HullWhiteTreeUtil:
 
+    @staticmethod
     def get_zcb_price_vector(tree: VectorizedHW1FTrinomialTree,
                              t0: float, T: float) -> np.ndarray:
         
@@ -38,6 +39,7 @@ class HullWhiteTreeUtil:
         if t0_row_index is None or T_row_index is None:
             raise Exception(f"Invalid t0 or T for the given tree.")
 
+        # 
         # # backward induction
         # cur_layer: LayerAttributesStruct    = tree.t_to_layer[T].prev_layer_attr
         # last_layer: LayerAttributesStruct   = tree.t_to_layer[t0]

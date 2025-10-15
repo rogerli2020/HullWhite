@@ -6,6 +6,7 @@ from matplotlib.collections import LineCollection
 from dataclasses import dataclass
 from dataclasses import dataclass, field
 from scipy.special import logsumexp
+from warnings import deprecated
 
 EPSILON = 1e-5
 
@@ -107,12 +108,14 @@ class OneFactorHullWhiteTrinomialTree:
             last_time = pt
         self.payment_times = sorted(set([0.0] + new_times))
 
+    @deprecated("This function is deprecated.")
     def tree_is_built(self) -> bool:
         """
         Returns True if tree is built, False otherwise.
         """
         return self.root_node is not None
 
+    @deprecated("This function is deprecated.")
     def build_tree(self, verbose=False):
         """
         Builds the tree based on the given model and payment times.
@@ -275,6 +278,7 @@ class OneFactorHullWhiteTrinomialTree:
         if verbose:
             print(f"Tree {self.desc}:\tTree built successfully.")
     
+    @deprecated("This function is deprecated.")
     def node_lookup(self, m: int, j: int) -> Node:
         if not self.root_node:
             raise Exception("root node not found.")
@@ -282,6 +286,7 @@ class OneFactorHullWhiteTrinomialTree:
             raise Exception(f"No node found at ({m}, {j}).")
         return self._node_lookup[(m, j)]
     
+    @deprecated("This function is deprecated.")
     def node_lookup_safe(self, m: int, j: int) -> tuple:
         if not self.root_node:
             raise Exception("root node not found.")
@@ -289,6 +294,7 @@ class OneFactorHullWhiteTrinomialTree:
             return False, None
         return True, self._node_lookup[(m, j)]
 
+    @deprecated("This function is deprecated.")
     def get_nodes_at_layer(self, layer: LayerAttributesStruct) -> list[Node]:
         if not self.root_node:
             raise Exception("root node not found.")

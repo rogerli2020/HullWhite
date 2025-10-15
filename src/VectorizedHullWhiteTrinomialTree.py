@@ -34,7 +34,7 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
     def tree_is_built(self):
         return self.tree_built
     
-    def build_tree(self) -> None:
+    def build(self) -> None:
 
         def transform_lists_of_array_to_single_array(l: list[np.ndarray], 
                                                      tree: np.ndarray):
@@ -87,16 +87,6 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
         Vs = sigmas * sigmas * delta_ts
         component_1s = Vs / delta_xs / delta_xs  # to avoid redundant calculation
 
-        # merge layer information into a dataframe just to make things clearer
-        # layer_information = pd.DataFrame({
-        #     't': ts,
-        #     'delta_t': delta_ts,
-        #     'sigma': sigmas,
-        #     'ln_actual_zcb_price': ln_actual_zcb_prices,
-        #     'delta_x': delta_xs,
-        #     'V': Vs,
-        #     'component_1': component_1s
-        # })
         layer_information = np.array(
             [
                 ts,
