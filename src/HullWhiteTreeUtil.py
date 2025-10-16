@@ -20,7 +20,8 @@ class HullWhiteTreeUtil:
     def get_zcb_price_vector(tree: VectorizedHW1FTrinomialTree,
                              t0: float, T: float) -> np.ndarray:
         """
-        Get the discount factors for the horizon t0 to T.
+        Given initial time t0 and maturity time T, get the expected ZCB prices of all nodes at t=t0 implied by the tree.
+        Returns the vector of expected ZCB prices.
         """
 
         # round times
@@ -42,63 +43,50 @@ class HullWhiteTreeUtil:
         if t0_row_index is None or T_row_index is None:
             raise Exception(f"Invalid t0 or T for the given tree.")
 
-<<<<<<< Updated upstream
-        # 
-=======
-        cur_price = np.ones(tree.short_rate_tree.shape[1], dtype=float)
+        # terminal price
+        cols            = tree.short_rate_tree.shape[1]
+
+        # keep track of things
+        child_price     = np.ones(cols, dtype=float)    # P(T, T) = 1
+        current_price   = np.zeros(cols, dtype=float)
 
         # backward induction step
-        parent_layer_index = T_row_index-1
+        parent_layer_index = T_row_index-1  # start at parent
         while parent_layer_index > t0_row_index:
 
-            # mask for active nodes in current layer
-            parent_layer_mask   = tree.node_mask_tree[parent_layer_index]
-
-            # layer data
+            # layer wise information
             delta_t             = tree.layer_information[parent_layer_index, LayerInfoCols.DELTA_T]
-            layer_short_rates   = tree.short_rate_tree[parent_layer_index]
 
-            # indices for children
-            mid_child_index     = tree.mid_index_tree[parent_layer_index]
-            up_child_index      = mid_child_index + 1
-            down_child_index    = mid_child_index - 1
+            # discount weighted by child probability!
+            # parent layer
+            parent_layer_mask   = tree.node_mask_tree[parent_layer_index]
+            parent_rates        = tree.short_rate_tree[parent_layer_index][parent_layer_mask]
 
-            # probabilities for this layer
+            # transient probabilities
             p_up                = tree.p_up_tree[parent_layer_index]
             p_mid               = tree.p_mid_tree[parent_layer_index]
             p_down              = tree.p_down_tree[parent_layer_index]
 
-            # child prices (next layer)
-            next_prices         = cur_price
+            # child indexes
+            mid_child_indexes   = tree.mid_index_tree[parent_layer_index] + tree.j0_index
+            up_child_indexes    = (mid_child_indexes + 1)
+            down_child_indexes  = (mid_child_indexes - 1)
 
-            # shift prices to align with parent layer nodes
-            price_up            = np.roll(next_prices, -1)
-            price_mid           = next_prices
-            price_down          = np.roll(next_prices, 1)
+            # E[P] = SIGMA SUM OVER i OF [ P_ci * p_ci * exp( -delta_t * parent_rate ) ]
+            # remember child prices ARE on the entire row basis idk what im saying but it makes sense to me
+            parent_instantaneous_discount   = np.exp( -delta_t * parent_rates[parent_layer_mask] )
+            up_child_contribution           = child_price[up_child_indexes]
+            mid_child_contribution          = 
+            down_child_contribution         = 
 
-            # zero out invalid child contributions due to tree truncation
-            # (using mask of next layer if available)
-            if parent_layer_index + 1 < tree.node_mask_tree.shape[0]:
-                next_mask = tree.node_mask_tree[parent_layer_index + 1]
-                price_up[~np.roll(next_mask, -1)] = 0.0
-                price_mid[~next_mask] = 0.0
-                price_down[~np.roll(next_mask, 1)] = 0.0
 
-            # expected discounted price at parent nodes
-            exp_factor = np.exp(-delta_t * layer_short_rates)
-            expected_price = (p_up * price_up + p_mid * price_mid + p_down * price_down) * exp_factor
-
-            # apply mask to ignore inactive nodes
-            cur_price = np.where(parent_layer_mask, expected_price, 0.0)
-
-            # move one layer up
+            # prepare for next iteration
+            child_price = current_price
+            current_price.fill(0.0)
             parent_layer_index -= 1
+        
+        return current_price[tree.node_mask_tree[t0_row_index]]
 
-
-
-
-
->>>>>>> Stashed changes
         # # backward induction
         # cur_layer: LayerAttributesStruct    = tree.t_to_layer[T].prev_layer_attr
         # last_layer: LayerAttributesStruct   = tree.t_to_layer[t0]
