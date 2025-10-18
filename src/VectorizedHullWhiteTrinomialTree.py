@@ -30,6 +30,7 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
         self.p_mid_tree: np.ndarray
         self.p_down_tree: np.ndarray
         self.Q_tree: np.ndarray
+        self.row_index: np.ndarray
     
     def tree_is_built(self):
         return self.tree_built
@@ -266,7 +267,6 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
         #endregion
 
         # assign values
-        self.j0_index: int|None = None
         self.layer_information = layer_information
         self.short_rate_tree = short_rate_tree
         self.node_mask_tree = reachable_mask_tree
@@ -276,5 +276,8 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
         self.p_down_tree = p_down_tree
         self.Q_tree = Q_tree
         self.tree_built = True
+
+        # create row index
+        self.row_index = np.arange(short_rate_tree_array_cols)
 
         print(f"Tree {self.desc} built! Array shape: {short_rate_tree.shape}")
