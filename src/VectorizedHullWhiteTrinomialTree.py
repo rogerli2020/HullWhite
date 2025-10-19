@@ -35,7 +35,7 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
     def tree_is_built(self):
         return self.tree_built
     
-    def build(self) -> None:
+    def build(self, verbose=True) -> None:
 
         def transform_lists_of_array_to_single_array(l: list[np.ndarray], 
                                                      tree: np.ndarray):
@@ -71,7 +71,8 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
                 m_is -= self.j0_index
             return reachable_mask_tree
 
-        print(f"Building tree {self.desc}...")
+        if verbose:
+            print(f"Building tree {self.desc}...")
 
         # just to make things handy
         a: float = self.model.a
@@ -200,7 +201,8 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
         p_mid_tree[mask_tree]           = np.concatenate(p_mid_by_layer)
         p_down_tree[mask_tree]          = np.concatenate(p_down_by_layer)
 
-        print(f"Calibrating tree {self.desc} to ZCB curve... Array shape: {short_rate_tree.shape}")
+        if verbose:
+            print(f"Calibrating tree {self.desc} to ZCB curve... Array shape: {short_rate_tree.shape}")
 
         #region Calibrate to ZCB
         # ==============================================================
@@ -280,4 +282,5 @@ class VectorizedHW1FTrinomialTree(OneFactorHullWhiteTrinomialTree):
         # create row index
         self.row_index = np.arange(short_rate_tree_array_cols)
 
-        print(f"Tree {self.desc} built! Array shape: {short_rate_tree.shape}")
+        if verbose:
+            print(f"Tree {self.desc} built! Array shape: {short_rate_tree.shape}")

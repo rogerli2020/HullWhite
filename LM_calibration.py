@@ -53,7 +53,7 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
 # objective function
 ITER_COUNT = 0
 PREV_MAE = 0.0
-def residuals(theta, dataframe, timestep=(1/12), max_workers=12):
+def residuals(theta, dataframe, timestep=(1/48), max_workers=12):
     global ITER_COUNT
     global PREV_MAE
     ITER_COUNT += 1
@@ -107,19 +107,31 @@ def residuals(theta, dataframe, timestep=(1/12), max_workers=12):
     return residuals_array
 
 
-theta0 = [0.02783250833203934] + [
-    0.01116865, 0.01051723, 0.00959414, 0.01144088, 0.01018817, 0.01124504,
-    0.01090442, 0.01113929, 0.01123557, 0.01009081, 0.0099216,  0.00996754
+# initial guess
+# theta0 = [0.05] + [0.01] * 3 + [0.02] * 4 + [0.03] * 5  # a + sigmas
+# Calibrated a: 0.045068880765744015
+# Calibrated sigmas: [0.0176809  0.01538654 0.01222778 0.06406526 0.01756987 0.03060232
+#  0.02016823 0.02500033 0.01839887 0.01664046 0.03418893 0.01270629]
+theta0 = [0.003] + [
+    0.01051865, 0.00931101, 0.00999334, 0.0106191,
+    0.01073114, 0.01129566, 0.01155485, 0.01207284,
+    0.01244945, 0.01227263, 0.01200748, 0.01447145
 ]
 
-# Levenberg-Marquardt
-res = least_squares(residuals, theta0, args=(df,), method='lm')
 
-# # TRF
-# lower_bounds = [1e-12] * 13
-# upper_bounds = [0.999999999] * 13
-# res = least_squares(residuals, theta0, args=(df,), method='trf',
-#                     bounds=(lower_bounds, upper_bounds))
+# Iteration: 224	 Current a: 0.022698774793271204	 Current sigma: [0.01135016 0.00984644 0.00996806 0.01083984 0.01047401 0.01110636
+#  0.01099313 0.01121305 0.01140323 0.01069859 0.01010777 0.01058382]
+# 	Current MAE: 11.85135580
+# 	Change in MAE: 0.00002476
+
+# # Levenberg-Marquardt
+# res = least_squares(residuals, theta0, args=(df,), method='lm')
+
+# TRF
+lower_bounds = [1e-12] * 13
+upper_bounds = [0.999999999] * 13
+res = least_squares(residuals, theta0, args=(df,), method='trf',
+                    bounds=(lower_bounds, upper_bounds))
 
 # calibrated parameters!
 calibrated_a = res.x[0]

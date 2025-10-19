@@ -88,7 +88,7 @@ class EuropeanSwaption:
             self.set_ATM_strike_fixed_rate_and_strike(zcb_curve)
         tree = VectorizedHW1FTrinomialTree(model, self.get_valuation_times(), 
                                                zcb_curve, timestep, desc=self.__repr__())
-        tree.build()
+        tree.build(verbose=verbose)
         return tree
     
     def __repr__(self):
