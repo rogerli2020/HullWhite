@@ -5,7 +5,7 @@
 This is a Python implementation of the one factor Hull-White (HW1F) model and a replication of [The General Hull-White Model and Super Calibration](https://archive.nyu.edu/handle/2451/26690) by Hull and White (August 2000).
 
 ## Usage Example
-1. Building a Tree:
+### 1. Building a Tree:
 ```Python
 from  src.HullWhite  import  OneFactorHullWhiteModel
 from  src.VectorizedHullWhiteTrinomialTree  import  VectorizedHW1FTrinomialTree
@@ -23,7 +23,7 @@ tree.build()
 ```
 This snippet of code would create a tree for a certain instrument with semi-annual payments (where the first payment happens exactly 6mo from now) and maturiting within 1.5 years. The timestep of the tree is set to 6mo, and the ZCB curve is set to a ```ZeroRateCurve``` object which must have a member function ```zero_rate_curve.get_zero_rate(t: float) -> float```.
 
-2. Using a Built Tree:
+### 2. Using a Built Tree:
 The short rates at each node, the transient probabilities, and children indexes will be stored in arrays as follows. To filter out paddings at each layer, use the mask stored in the array ```tree.node_mask_tree```. These arrays allow for easy traversal of the tree and vectorized calculations using the tree.
 ```Python
 mid_index_tree  =  tree.mid_index_tree  +  tree.j0_index  # translates the mid_index_tree to absolute indices for easy indexing.
@@ -140,7 +140,7 @@ Mask to identify node locations:
  [False False False  True]
  [False False False False]]
 ```
-3. Discounting using the Tree
+### 3. Discounting using the Tree
 Use the function ```HullWhiteTreeUtil.get_zcb_price_vector``` to get the expected ZCB price between ```t0``` and ```T``` for all nodes in layer where ```t = t0```.
 ```python
 from  src.HullWhiteTreeUtil  import  HullWhiteTreeUtil
@@ -166,5 +166,6 @@ Output:
 0.9701448358716543
 ```
 
-4. Pricing and Calibration
+### 4. Pricing and Calibration
+
 Refer to ```LM_calibration.py``` and ```./src/HullWhiteTreeSwaptionPricer.py``` for examples of pricing simple European swaptions and calibrating the implied volatility structure to market observables.
