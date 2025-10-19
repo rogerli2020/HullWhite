@@ -2,6 +2,7 @@ from enum import Enum
 from src.ZeroRateCurve import ZeroRateCurve
 from src.HullWhite import OneFactorHullWhiteModel
 from src.HullWhiteTrinomialTree import OneFactorHullWhiteTrinomialTree
+from src.VectorizedHullWhiteTrinomialTree import VectorizedHW1FTrinomialTree
 from src.ZeroRateCurve import ZeroRateCurve
 from src.HullWhiteTreeUtil import round_list_floats
 import numpy as np
@@ -77,6 +78,17 @@ class EuropeanSwaption:
         tree = OneFactorHullWhiteTrinomialTree(model, self.get_valuation_times(), 
                                                zcb_curve, timestep, desc=self.__repr__())
         tree.build_tree(verbose=verbose)
+        return tree
+    
+    def build_valuation_tree_vectorized(self, zcb_curve: ZeroRateCurve, set_ATM_strike: bool, 
+                              model: OneFactorHullWhiteModel, timestep: float=None, 
+                              verbose: bool=False) -> VectorizedHW1FTrinomialTree:
+        timestep = self.payment_frequency if timestep is None else timestep
+        if set_ATM_strike:
+            self.set_ATM_strike_fixed_rate_and_strike(zcb_curve)
+        tree = VectorizedHW1FTrinomialTree(model, self.get_valuation_times(), 
+                                               zcb_curve, timestep, desc=self.__repr__())
+        tree.build()
         return tree
     
     def __repr__(self):
