@@ -120,7 +120,6 @@ class OneFactorHullWhiteTrinomialTree:
         """
         Builds the tree based on the given model and payment times.
         """
-    
         if verbose:
             print(f"Tree {self.desc}:\tBuilding tree...")
 

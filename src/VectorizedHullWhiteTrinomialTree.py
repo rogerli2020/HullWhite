@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from scipy.special import logsumexp
 from enum import IntEnum
+from numba import njit
 
 
 class LayerInfoCols(IntEnum):

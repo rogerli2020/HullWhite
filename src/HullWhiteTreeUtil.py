@@ -37,8 +37,8 @@ class HullWhiteTreeUtil:
         ]
         return HullWhiteTreeUtil._get_zcb_price_vector_helper(*tree_args, t0, T)
     
-    @staticmethod
-    @njit
+    @staticmethod    
+    @njit    
     def _get_zcb_price_vector_helper(tree_layer_information,
                                 tree_short_rate_tree,
                                 tree_node_mask_tree,

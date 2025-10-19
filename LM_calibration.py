@@ -43,9 +43,9 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
         swap_end=swap_end,
         payment_frequency=0.5,
     )
-    print(f"Pricing {swaption.__repr__()}...")
+    # print(f"Pricing {swaption.__repr__()}...")
     tree = swaption.build_valuation_tree(ZCB_CURVE, set_ATM_strike=True, 
-                                         model=hw_model, timestep=timestep, verbose=True)
+                                         model=hw_model, timestep=timestep, verbose=False)
     price = HullWhiteTreeEuropeanSwaptionPricer.price_in_bps(swaption, tree)
     print(f"Swaption {swaption.__repr__()} priced!")
     return price  # convert to bps
@@ -58,8 +58,11 @@ def residuals(theta, dataframe, timestep=(1/48), max_workers=12):
     global PREV_MAE
     ITER_COUNT += 1
 
-    a = theta[0]
-    sigma = theta[1:]
+    # a = theta[0]
+    # sigma = theta[1:]
+
+    a = 0.003
+    sigma = theta
 
     log_str = f"Iteration: {ITER_COUNT}\t Current a: {a}\t Current sigma: {sigma}"
     print(log_str)
@@ -108,15 +111,17 @@ def residuals(theta, dataframe, timestep=(1/48), max_workers=12):
 
 
 # initial guess
-# theta0 = [0.05] + [0.01] * 3 + [0.02] * 4 + [0.03] * 5  # a + sigmas
+# theta0 = [0.01] + [0.04] * 12
+# theta0 = [0.02] * 12
+
 # Calibrated a: 0.045068880765744015
 # Calibrated sigmas: [0.0176809  0.01538654 0.01222778 0.06406526 0.01756987 0.03060232
 #  0.02016823 0.02500033 0.01839887 0.01664046 0.03418893 0.01270629]
-theta0 = [0.003] + [
-    0.01051865, 0.00931101, 0.00999334, 0.0106191,
-    0.01073114, 0.01129566, 0.01155485, 0.01207284,
-    0.01244945, 0.01227263, 0.01200748, 0.01447145
-]
+# theta0 = [0.003] + [
+#     0.01051865, 0.00931101, 0.00999334, 0.0106191,
+#     0.01073114, 0.01129566, 0.01155485, 0.01207284,
+#     0.01244945, 0.01227263, 0.01200748, 0.01447145
+# ]
 
 
 # Iteration: 224	 Current a: 0.022698774793271204	 Current sigma: [0.01135016 0.00984644 0.00996806 0.01083984 0.01047401 0.01110636
@@ -124,12 +129,15 @@ theta0 = [0.003] + [
 # 	Current MAE: 11.85135580
 # 	Change in MAE: 0.00002476
 
+theta0 = [0.01062891, 0.00938458, 0.00998923, 0.01065211, 0.01069531, 0.01127725,
+ 0.01147393, 0.01196858, 0.01229759, 0.01206488, 0.01173978, 0.01390085]
+
 # # Levenberg-Marquardt
 # res = least_squares(residuals, theta0, args=(df,), method='lm')
 
 # TRF
-lower_bounds = [1e-12] * 13
-upper_bounds = [0.999999999] * 13
+lower_bounds = [1e-12] * 12
+upper_bounds = [0.999999999] * 12
 res = least_squares(residuals, theta0, args=(df,), method='trf',
                     bounds=(lower_bounds, upper_bounds))
 
@@ -137,6 +145,6 @@ res = least_squares(residuals, theta0, args=(df,), method='trf',
 calibrated_a = res.x[0]
 calibrated_sigmas = res.x[1:]
 
-print("Calibrated a:", calibrated_a)
+# print("Calibrated a:", calibrated_a)
 print("Calibrated sigmas:", calibrated_sigmas)
 print("Residual norm:", np.linalg.norm(res.fun))
