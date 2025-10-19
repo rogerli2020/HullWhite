@@ -53,7 +53,7 @@ def price_swaption(hw_model, swap_start, swap_end, timestep):
 # objective function
 ITER_COUNT = 0
 PREV_MAE = 0.0
-def residuals(theta, dataframe, timestep=0.125, max_workers=12):
+def residuals(theta, dataframe, timestep=(1/12), max_workers=12):
     global ITER_COUNT
     global PREV_MAE
     ITER_COUNT += 1

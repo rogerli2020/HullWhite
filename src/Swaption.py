@@ -69,7 +69,7 @@ class EuropeanSwaption:
         
         return par_rate_numerator / par_rate_denominator
     
-    def build_valuation_tree(self, zcb_curve: ZeroRateCurve, set_ATM_strike: bool, 
+    def build_valuation_tree_OLD(self, zcb_curve: ZeroRateCurve, set_ATM_strike: bool, 
                               model: OneFactorHullWhiteModel, timestep: float=None, 
                               verbose: bool=False) -> OneFactorHullWhiteTrinomialTree:
         timestep = self.payment_frequency if timestep is None else timestep
@@ -80,7 +80,7 @@ class EuropeanSwaption:
         tree.build_tree(verbose=verbose)
         return tree
     
-    def build_valuation_tree_vectorized(self, zcb_curve: ZeroRateCurve, set_ATM_strike: bool, 
+    def build_valuation_tree(self, zcb_curve: ZeroRateCurve, set_ATM_strike: bool, 
                               model: OneFactorHullWhiteModel, timestep: float=None, 
                               verbose: bool=False) -> VectorizedHW1FTrinomialTree:
         timestep = self.payment_frequency if timestep is None else timestep
