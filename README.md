@@ -21,7 +21,7 @@ payment_times=payment_times, zcb_curve=ExampleNSSCurve(), timestep=timestep)
 
 tree.build()
 ```
-This snippet of code would create a tree for a certain instrument with semi-annual payments (where the first payment happens exactly 6mo from now) and maturiting within 1.5 years. The timestep of the tree is set to 6mo, and the ZCB curve is set to a ```ZeroRateCurve``` object which must have a member function ```zero_rate_curve.get_zero_rate(t: float) -> float```.
+This snippet of code would create a tree for a certain instrument with semi-annual payments (where the first payment happens exactly 6mo from now) and maturing within 1.5 years. The timestep of the tree is set to 6mo, and the ZCB curve is set to a ```ZeroRateCurve``` object which must have a member function ```zero_rate_curve.get_zero_rate(t: float) -> float```.
 
 ### 2. Using a Built Tree:
 The short rates at each node, the transient probabilities, and children indexes will be stored in arrays as follows. To filter out paddings at each layer, use the mask stored in the array ```tree.node_mask_tree```. These arrays allow for easy traversal of the tree and vectorized calculations using the tree.
