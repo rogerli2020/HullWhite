@@ -1,4 +1,5 @@
 import bisect
+import numpy as np
 
 class OneFactorHullWhiteModel:
     def __init__(self, a: float) -> None:
@@ -34,3 +35,13 @@ class OneFactorHullWhiteModel:
         # linear interpolation
         sigma_t = sigma0 + (sigma1 - sigma0) * (t - t0) / (t1 - t0)
         return sigma_t
+
+    def implied_vol(self, T, steps=2000):
+        if T == 0:
+            return 0.0
+        dt = T / steps
+        total_var = 0.0
+        for i in range(steps):
+            t = (i + 0.5) * dt  # midpoint rule
+            total_var += self.sigma(t)**2 * dt
+        return np.sqrt(total_var / T)
