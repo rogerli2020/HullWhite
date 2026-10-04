@@ -168,4 +168,4 @@ Output:
 
 ### 4. Pricing and Calibration
 
-Refer to ```LM_calibration.py``` and ```./src/HullWhiteTreeSwaptionPricer.py``` for examples of pricing simple European swaptions and calibrating the implied volatility structure to market observables.
+Refer to ```LM_calibration.py``` and ```./src/HullWhiteTreeSwaptionPricer.py``` for examples of pricing simple European swaptions and calibrating the instantaneous volatility curve to market observables.
